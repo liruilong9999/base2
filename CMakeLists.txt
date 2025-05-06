@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 # 设置项目名称
-project(CppTemplateProject)
+project(testopcua)
 
 # C++标准
 set(CMAKE_CXX_STANDARD 14)  # 设置为 C++14
