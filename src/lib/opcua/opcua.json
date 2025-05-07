@@ -1,0 +1,24 @@
+{
+    "opcua":[
+    {
+        "url":"opc.tcp://127.0.0.1:4840",
+        "device":"navigation",
+        "period":100,
+        "data":[
+        {
+            "node_id":"4100101",
+            "node_class":"variable",
+            "browse_name":"status",
+            "dispaly_name":"系統状态",
+            "data_type":"int32",
+            "array_dimensions":"1",
+            "default_value":"0",
+            "access_level":"rw",
+            "min_value":"0",
+            "max_value":"1",
+            "description":"0表示正常，1表示故障"
+        }
+        ]
+    }
+    ]
+}
