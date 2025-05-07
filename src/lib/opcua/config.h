@@ -2,40 +2,42 @@
 #define CONFIG_H
 
 #include <QString>
-#include <QJsonObject>
 #include <QVector>
 #include <QVariant>
 
-// 定义单个数据节点的配置信息
-struct NodeConfig
+// 变量节点配置
+struct VariableConfig
 {
-    QString  nodeId;          // 节点ID（如 "4100101"）
-    QString  nodeClass;       // 节点类型（"variable" 或 "object"）
-    QString  browseName;      // 浏览名称（如 "status"）
-    QString  displayName;     // 显示名称（如 "系統状态"）
-    QString  dataType;        // 数据类型（如 "int32"）
-    int      arrayDimensions; // 数组维度（0表示标量）
-    QVariant defaultValue;    // 默认值
-    QString  accessLevel;     // 访问权限（"rw" 或 "ro"）
-    double   minValue;        // 最小值（仅限数值类型）
-    double   maxValue;        // 最大值（仅限数值类型）
-    QString  description;     // 描述信息
+    QString  browse_name;
+    QString  display_name;
+    QString  data_type;
+    QVariant default_value;
+    QString  access_level;
+    double   min_value{0.0};
+    double   max_value{1.0};
+    QString  description;
 };
 
-// 定义OPC UA服务器的配置信息
+// 设备配置
+struct DeviceConfig
+{
+    QString                 device_name;
+    QString                 device_node_id;
+    int                     period{100};
+    QVector<VariableConfig> variables;
+};
+
+// OPC UA服务器配置
 struct OpcUaConfig
 {
-    QString             url;    // 服务器地址（如 "opc.tcp://127.0.0.1:4840"）
-    QString             device; // 设备名称（如 "navigation"）
-    int                 period; // 数据更新周期（毫秒）
-    QVector<NodeConfig> data;   // 数据节点列表
+    QString               url;
+    QVector<DeviceConfig> devices;
 };
 
 class ConfigParser
 {
 public:
-    // 从JSON文件解析配置
-    static QVector<OpcUaConfig> parse(const QString & filePath);
+    static bool parseConfig(const QString & filePath, QVector<OpcUaConfig> & outConfigs);
 };
 
 #endif // CONFIG_H

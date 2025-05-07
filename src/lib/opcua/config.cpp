@@ -2,50 +2,79 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QDebug>
 
-QVector<OpcUaConfig> ConfigParser::parse(const QString & filePath)
+bool ConfigParser::parseConfig(const QString & filePath, QVector<OpcUaConfig> & outConfigs)
 {
-    QVector<OpcUaConfig> configs;
-
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly))
+    QFile configFile(filePath);
+    if (!configFile.open(QIODevice::ReadOnly))
     {
-        qWarning("无法打开配置文件");
-        return configs;
+        qCritical() << "无法打开配置文件:" << filePath;
+        return false;
     }
 
-    QJsonDocument doc        = QJsonDocument::fromJson(file.readAll());
-    QJsonObject   root       = doc.object();
-    QJsonArray    opcuaArray = root["opcua"].toArray();
-
-    for (const QJsonValue & configVal : opcuaArray)
+    QJsonParseError parseError;
+    QJsonDocument   doc = QJsonDocument::fromJson(configFile.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError)
     {
-        QJsonObject configObj = configVal.toObject();
+        qCritical() << "JSON解析错误:" << parseError.errorString();
+        return false;
+    }
+
+    if (!doc.isArray())
+    {
+        qCritical() << "配置文件格式错误：根元素应为数组";
+        return false;
+    }
+
+    QJsonArray rootArray = doc.array();
+    for (const QJsonValue & serverVal : rootArray)
+    {
+        if (!serverVal.isObject())
+            continue;
+
+        QJsonObject serverObj = serverVal.toObject();
         OpcUaConfig config;
-        config.url    = configObj["url"].toString();
-        config.device = configObj["device"].toString();
-        config.period = configObj["period"].toInt();
+        config.url = serverObj["url"].toString();
 
-        QJsonArray dataArray = configObj["data"].toArray();
-        for (const QJsonValue & dataVal : dataArray)
+        // 解析devices数组
+        QJsonArray devicesArray = serverObj["devices"].toArray();
+        for (const QJsonValue & deviceVal : devicesArray)
         {
-            QJsonObject dataObj = dataVal.toObject();
-            NodeConfig  node;
-            node.nodeId          = dataObj["node_id"].toString();
-            node.nodeClass       = dataObj["node_class"].toString();
-            node.browseName      = dataObj["browse_name"].toString();
-            node.displayName     = dataObj["display_name"].toString();
-            node.dataType        = dataObj["data_type"].toString();
-            node.arrayDimensions = dataObj["array_dimensions"].toString().toInt();
-            node.defaultValue    = dataObj["default_value"].toVariant();
-            node.accessLevel     = dataObj["access_level"].toString();
-            node.minValue        = dataObj["min_value"].toDouble();
-            node.maxValue        = dataObj["max_value"].toDouble();
-            node.description     = dataObj["description"].toString();
-            config.data.append(node);
+            if (!deviceVal.isObject())
+                continue;
+
+            QJsonObject  deviceObj = deviceVal.toObject();
+            DeviceConfig device;
+            device.device_name    = deviceObj["device_name"].toString();
+            device.device_node_id = deviceObj["device_node_id"].toString();
+            device.period         = deviceObj["period"].toInt();
+
+            // 解析variables数组
+            QJsonArray varsArray = deviceObj["variables"].toArray();
+            for (const QJsonValue & varVal : varsArray)
+            {
+                if (!varVal.isObject())
+                    continue;
+
+                QJsonObject    varObj = varVal.toObject();
+                VariableConfig variable;
+                variable.browse_name   = varObj["browse_name"].toString();
+                variable.display_name  = varObj["display_name"].toString();
+                variable.data_type     = varObj["data_type"].toString();
+                variable.default_value = varObj["default_value"].toVariant();
+                variable.access_level  = varObj["access_level"].toString();
+                variable.min_value     = varObj["min_value"].toDouble();
+                variable.max_value     = varObj["max_value"].toDouble();
+                variable.description   = varObj["description"].toString();
+
+                device.variables.append(variable);
+            }
+            config.devices.append(device);
         }
-        configs.append(config);
+        outConfigs.append(config);
     }
 
-    return configs;
+    return true;
 }

@@ -15,6 +15,9 @@ void ServerManager::loadConfig(QString path)
 
     if (m_config.isEmpty())
         return;
+
+
+
 }
 
 void ServerManager::startThread()

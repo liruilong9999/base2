@@ -1,138 +1,71 @@
-#include "server.h"
+
 #include <QDebug>
 #include <open62541/server_config_default.h>
+#include <signal.h>
+#include <stdlib.h>
+
 #include "translate.h"
+#include "server.h"
 
-// 写入回调函数的上下文数据
-struct WriteContext
+// 控制服务器运行状态的标志
+UA_Boolean g_running = true;
+
+// Ctrl+C 信号处理函数
+static void stopHandler(int sign)
 {
-    OpcUaServer * server;
-    NodeConfig    nodeCfg;
-};
-
-// 静态写入回调函数
-static UA_StatusCode writeCallback(UA_Server *             server,
-                                   const UA_NodeId *       sessionId,
-                                   void *                  sessionContext,
-                                   const UA_NodeId *       nodeId,
-                                   void *                  nodeContext,
-                                   const UA_NumericRange * range,
-                                   const UA_DataValue *    value)
-{
-    Q_UNUSED(sessionId);
-    Q_UNUSED(sessionContext);
-    Q_UNUSED(range);
-    WriteContext * ctx = static_cast<WriteContext *>(nodeContext);
-    qDebug() << "节点" << ctx->nodeCfg.nodeId << "被写入新值";
-    
-
-        // 添加值范围验证等逻辑
-    if (value->hasValue && value->value.type == &UA_TYPES[UA_TYPES_INT32])
-    {
-        int32_t newValue = *(int32_t *)value->value.data;
-        if (newValue < ctx->nodeCfg.minValue || newValue > ctx->nodeCfg.maxValue)
-        {
-            return UA_STATUSCODE_BADOUTOFRANGE;
-        }
-    }
-
-    return UA_STATUSCODE_GOOD;
+    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "接收到 Ctrl+C 中断信号，准备停止服务器");
+    g_running = false;
 }
 
-OpcUaServer::OpcUaServer()
-    : m_server(nullptr)
-    , m_running(false)
-{}
+OpcUaServer::OpcUaServer(quint16 port, int period, QObject * parent)
+    : QObject(parent)
+    , m_period(period)
+    , m_port(port)
+    , m_pTimer(new QTimer(this))
+{
+    // 注册信号处理器，接收 Ctrl+C 中断信号
+    signal(SIGINT, stopHandler);
+    signal(SIGTERM, stopHandler);
+
+    // 创建服务器实例
+    m_server = UA_Server_new();
+    m_config = UA_Server_getConfig(m_server);
+}
 
 OpcUaServer::~OpcUaServer()
 {
-    stop();
-}
-
-bool OpcUaServer::start(QVector<OpcUaConfig> & configs)
-{
-    m_server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(m_server));
-
-    // 遍历所有配置创建节点
-    for (OpcUaConfig & config : configs)
-    {
-        createNodes(config);
-    }
-
-    m_running         = true;
-    UA_StatusCode ret = UA_Server_run(m_server, &m_running);
-    if (ret != UA_STATUSCODE_GOOD)
-    {
-        qCritical() << "服务器启动失败，错误码:" << UA_StatusCode_name(ret);
-        return false;
-    }
-    return true;
-}
-
-void OpcUaServer::stop()
-{
-    m_running = false;
     if (m_server)
     {
         UA_Server_delete(m_server);
-        m_server = nullptr;
     }
 }
 
-void OpcUaServer::createNodes(OpcUaConfig & config)
+void OpcUaServer::startServer()
 {
-    UA_NodeId           deviceFolder;
-    UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
+    // 设置服务器监听端口为 m_port，监听所有 IP（0.0.0.0），即 opc.tcp://<本机IP>:m_port
+    UA_ServerConfig_setMinimal(m_config, m_port, NULL);
 
-    objAttr.displayName = UA_LOCALIZEDTEXT("en", QString2Char(config.device));
-    UA_Server_addObjectNode(m_server, UA_NODEID_NUMERIC(1, 0), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, QString2Char(config.device)), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), objAttr, nullptr, &deviceFolder);
+    // 添加变量节点（示例）
 
-    for (NodeConfig & nodeCfg : config.data)
-    {
-        UA_VariableAttributes varAttr = UA_VariableAttributes_default;
-        varAttr.displayName           = UA_LOCALIZEDTEXT("en", QString2Char(nodeCfg.displayName));
-        varAttr.dataType              = mapDataType(nodeCfg.dataType)->typeId;
-        varAttr.accessLevel           = mapAccessLevel(nodeCfg.accessLevel);
-
-        // 设置默认值
-        if (nodeCfg.dataType == "int32")
-        {
-            int32_t val = nodeCfg.defaultValue.toInt();
-            UA_Variant_setScalar(&varAttr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
-        } // 其他数据类型处理...
-
-        // 创建变量节点
-        UA_NodeId        nodeId     = UA_NODEID_STRING(1, QString2Char(nodeCfg.nodeId));
-        UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, QString2Char(nodeCfg.browseName));
-        UA_Server_addVariableNode(m_server, nodeId, deviceFolder, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), varAttr, nullptr, nullptr);
-
-         // 注册写入回调（最新版本方式）
-        if (nodeCfg.accessLevel.contains("w"))
-        {
-            WriteContext *   ctx = new WriteContext{this, nodeCfg};
-            UA_ValueCallback callback;
-            callback.onWrite      = writeCallback;
-            callback.onRead       = nullptr;
-            UA_Server_setVariableNode_valueCallback(m_server, nodeId, callback, ctx);
-        }
-    }
+    // 启动服务器主循环，直到 running 为 false
+    UA_StatusCode retval = UA_Server_run(m_server, &g_running); // 这里会阻塞，需要重构
 }
 
-const UA_DataType * OpcUaServer::mapDataType(QString & typeStr)
+void OpcUaServer::stopServer()
 {
-    static QMap<QString, const UA_DataType *> typeMap = {
-        {"int32", &UA_TYPES[UA_TYPES_INT32]},
-        {"double", &UA_TYPES[UA_TYPES_DOUBLE]},
-        {"bool", &UA_TYPES[UA_TYPES_BOOLEAN]},
-        // 其他类型...
-    };
-    return typeMap.value(typeStr, &UA_TYPES[UA_TYPES_VARIANT]);
+    g_running = false;
 }
 
-UA_Byte OpcUaServer::mapAccessLevel(QString & accessLevel)
+void OpcUaServer::addNode(UA_NodeId node)
 {
-    if (accessLevel == "rw")
-        return UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    return UA_ACCESSLEVELMASK_READ;
+    m_nodeIds.push_back(node);
+}
+
+void OpcUaServer::updateNodeData(const QString & nodeBrowseName, const QVariant & value)
+{
+}
+
+bool OpcUaServer::createNodes()
+{
+    return false;
 }
