@@ -4,27 +4,30 @@
 #include <open62541/server.h>
 #include "config.h"
 
-class OpcUaServer
-{
-public:
-    OpcUaServer();
-    ~OpcUaServer();
+#include <QObject>
+#include <QDebug>
+#include <QTimer>
+#include <QMap>
 
-    // 启动服务器并加载配置
-    bool start( QVector<OpcUaConfig> & configs);
-    // 停止服务器
-    void stop();
+/// <summary>
+/// 该类表示一个端口的服务，该端口的服务端口一致，数据发送间隔一致，可以有多个节点
+/// </summary>
+class OpcUaServer : public QObject
+{
+    Q_OBJECT
+public:
+    OpcUaServer(QObject * parent = nullptr);
+    ~OpcUaServer() override;
+
+    void startServer();
+    void stopServer();
 
 private:
-    UA_Server * m_server;  // OPC UA 服务器实例
-    bool        m_running; // 服务器运行状态
+    quint16     m_port;
+    UA_Server * m_server;
+    UA_Boolean  m_running;
 
-    // 创建节点
-    void createNodes( OpcUaConfig & config);
-    // 数据类型映射
-    const UA_DataType * mapDataType( QString & typeStr);
-    // 访问权限映射
-    UA_Byte mapAccessLevel( QString & accessLevel);
+    QMap<UA_NodeId, > m_nodeMap;
 };
 
 #endif // SERVER_H
