@@ -12,20 +12,20 @@
 //    explicit OpcUaClient(QObject * parent = nullptr);
 //    ~OpcUaClient();
 //
-//    // Á¬½Ó·şÎñÆ÷
+//    // è¿æ¥æœåŠ¡å™¨
 //    bool connect(const QString & url);
-//    // ¶Ï¿ªÁ¬½Ó
+//    // æ–­å¼€è¿æ¥
 //    void disconnect();
-//    // Ğ´ÈëÊı¾İ
+//    // å†™å…¥æ•°æ®
 //    bool writeValue(const QString & nodeId, const QVariant & value);
-//    // ¶©ÔÄÊı¾İ±ä¸ü
+//    // è®¢é˜…æ•°æ®å˜æ›´
 //    void subscribe(const QString & nodeId, int intervalMs);
 //
 //signals:
 //    void valueChanged(const QString & nodeId, const QVariant & value);
 //
 //private:
-//    UA_Client * m_client; // OPC UA ¿Í»§¶ËÊµÀı
+//    UA_Client * m_client; // OPC UA å®¢æˆ·ç«¯å®ä¾‹
 //};
 
 #endif // CLIENT_H

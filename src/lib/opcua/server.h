@@ -9,40 +9,46 @@
 #include <QTimer>
 #include <QMap>
 #include <QVector>
+#include "opcua_global.h"
 
 /// <summary>
-/// ¸ÃÀà±íÊ¾Ò»¸ö¶Ë¿ÚµÄ·şÎñ£¬¸Ã¶Ë¿ÚµÄ·şÎñ¶Ë¿ÚÒ»ÖÂ£¬Êı¾İ·¢ËÍ¼ä¸ôÒ»ÖÂ£¬¿ÉÒÔÓĞ¶à¸ö½Úµã
+/// è¯¥ç±»è¡¨ç¤ºä¸€ä¸ªç«¯å£çš„æœåŠ¡ï¼Œè¯¥ç«¯å£çš„æœåŠ¡ç«¯å£ä¸€è‡´ï¼Œæ•°æ®å‘é€é—´éš”ä¸€è‡´ï¼Œå¯ä»¥æœ‰å¤šä¸ªèŠ‚ç‚¹
 /// </summary>
-class OpcUaServer : public QObject
+class OPCUA_EXPORT OpcUaServer : public QObject
 {
     Q_OBJECT
 public:
-    OpcUaServer(quint16 port, int period, QObject * parent = nullptr);
+    OpcUaServer(OpcUaConfig  config,  QObject * parent = nullptr);
     ~OpcUaServer() override;
 
-    void startServer();
+    bool startServer();
     void stopServer();
 
-    // Ìí¼Ó½Úµã,µ±Ç°·şÎñÏÂÓĞÄÄĞ©½Úµã
+    // æ·»åŠ èŠ‚ç‚¹,å½“å‰æœåŠ¡ä¸‹æœ‰å“ªäº›èŠ‚ç‚¹
     void addNode(UA_NodeId node);
 
-    // ¸üĞÂ½ÚµãÊı¾İ
+    // æ›´æ–°èŠ‚ç‚¹æ•°æ®
     void updateNodeData(const QString & nodeBrowseName, const QVariant & value);
-   
-    // ¸ù¾İÅäÖÃ´´½¨½Úµã
+
+    // æ ¹æ®é…ç½®åˆ›å»ºèŠ‚ç‚¹
     bool createNodes();
 
+    // åˆ›å»ºå•ä¸ªå˜é‡èŠ‚ç‚¹
+    UA_NodeId createVariableNode(QString & parentNodeIdStr, VariableConfig & varConfig);
+
+public slots:
+    void onTimerTimeout();
+
 private:
-    double  m_period; // Êı¾İ·¢ËÍ¼ä¸ô£¬µ¥Î»ÎªºÁÃë
-    quint16 m_port;   // ¶Ë¿Ú
+    QTimer *          m_pTimer;        // å®šæ—¶å™¨
+    UA_Server *       m_pServer;       // opcuaæœåŠ¡å™¨
+    UA_ServerConfig * m_pServerConfig; // opcuaé…ç½®
 
-    QTimer *          m_pTimer; // ¶¨Ê±Æ÷
-    UA_Server *       m_server; // opcua·şÎñÆ÷
-    UA_ServerConfig * m_config; // opcuaÅäÖÃ
+    // èŠ‚ç‚¹æ˜ å°„è¡¨ <BrowseName, NodeId>
+    QMap<QString, UA_NodeId> m_nodeMap;
 
-    QMap<UA_NodeId, QVector<UA_Variant>> m_nodeMap; // Ò»¸ö½ÚµãÏÂµÄËùÓĞ²ÎÊı(¾ßÌåµÄÊı¾İÖµ)
-
-    QVector<UA_NodeId> m_nodeIds; // ½ÚµãIDÁĞ±í
+    QVector<UA_NodeId> m_nodeIds; // èŠ‚ç‚¹IDåˆ—è¡¨
+    OpcUaConfig        m_config;
 };
 
 #endif // SERVER_H

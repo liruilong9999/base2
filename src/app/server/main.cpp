@@ -73,6 +73,12 @@ int main(void)
     // 设置服务器监听端口为 12345，监听所有 IP（0.0.0.0），即 opc.tcp://<本机IP>:12345
     UA_ServerConfig_setMinimal(config, 12345, NULL);
 
+        // 设置服务器URL
+    //UA_String hostname = UA_STRING_ALLOC(m_config.url.toUtf8().constData());
+    //UA_ServerConfig_setCustomHostname(UA_Server_getConfig(server), hostname);
+    //UA_String_clear(&hostname);
+
+
     // 添加变量节点（示例）
     addUInt32VariableWithTimestamp(server, "speed kmh", 1001, 88); // 添加 UInt32 节点，值为88
     addUInt32VariableWithTimestamp(server, "dianya Volt", 1002, 220);

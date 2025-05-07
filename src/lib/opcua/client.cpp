@@ -21,7 +21,7 @@
 //    UA_StatusCode status = UA_Client_connect(m_client, url.toUtf8());
 //    if (status != UA_STATUSCODE_GOOD)
 //    {
-//        qWarning() << "Á¬½ÓÊ§°Ü:" << UA_StatusCode_name(status);
+//        qWarning() << "è¿žæŽ¥å¤±è´¥:" << UA_StatusCode_name(status);
 //        return false;
 //    }
 //    return true;
@@ -38,15 +38,15 @@
 //    UA_Variant uaValue;
 //    UA_Variant_init(&uaValue);
 //
-//    // ¸ù¾ÝÀàÐÍÉèÖÃÖµ
+//    // æ ¹æ®ç±»åž‹è®¾ç½®å€¼
 //    switch (value.type())
 //    {
 //    case QVariant::Int :
 //        UA_Variant_setScalar(&uaValue, (int32_t *)&value.toInt(), &UA_TYPES[UA_TYPES_INT32]);
 //        break;
-//    // ÆäËûÀàÐÍ´¦Àí...
+//    // å…¶ä»–ç±»åž‹å¤„ç†...
 //    default :
-//        qWarning() << "²»Ö§³ÖµÄÊý¾ÝÀàÐÍ";
+//        qWarning() << "ä¸æ”¯æŒçš„æ•°æ®ç±»åž‹";
 //        return false;
 //    }
 //
@@ -56,12 +56,12 @@
 //
 //void OpcUaClient::subscribe(const QString & nodeId, int intervalMs)
 //{
-//    // ´´½¨¶©ÔÄ
+//    // åˆ›å»ºè®¢é˜…
 //    UA_CreateSubscriptionRequest subReq   = UA_CreateSubscriptionRequest_default();
 //    subReq.requestedPublishingInterval    = intervalMs;
 //    UA_CreateSubscriptionResponse subResp = UA_Client_Subscriptions_create(m_client, subReq, nullptr, nullptr, nullptr);
 //
-//    // ´´½¨¼à¿ØÏî
+//    // åˆ›å»ºç›‘æŽ§é¡¹
 //    UA_MonitoredItemCreateRequest itemReq;
 //    UA_MonitoredItemCreateRequest_init(&itemReq);
 //    itemReq.itemToMonitor.nodeId      = UA_NODEID_STRING(1, nodeId.toUtf8());
@@ -70,7 +70,7 @@
 //
 //    UA_Client_MonitoredItems_createDataChange(
 //        m_client, subResp.subscriptionId, UA_TIMESTAMPSTORETURN_BOTH, itemReq, nullptr, [](UA_Client * client, UA_UInt32 subId, void * subContext, UA_UInt32 monId, void * monContext, UA_DataValue * value) {
-//            // ´¥·¢ÐÅºÅ
+//            // è§¦å‘ä¿¡å·
 //            QVariant var;
 //            if (value->hasValue && value->value.type == &UA_TYPES[UA_TYPES_INT32])
 //            {

@@ -7,48 +7,65 @@
 #include "translate.h"
 #include "server.h"
 
-// ¿ØÖÆ·şÎñÆ÷ÔËĞĞ×´Ì¬µÄ±êÖ¾
+// æ§åˆ¶æœåŠ¡å™¨è¿è¡ŒçŠ¶æ€çš„æ ‡å¿—
 UA_Boolean g_running = true;
 
-// Ctrl+C ĞÅºÅ´¦Àíº¯Êı
+// Ctrl+C ä¿¡å·å¤„ç†å‡½æ•°
 static void stopHandler(int sign)
 {
-    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "½ÓÊÕµ½ Ctrl+C ÖĞ¶ÏĞÅºÅ£¬×¼±¸Í£Ö¹·şÎñÆ÷");
+    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "æ¥æ”¶åˆ° Ctrl+C ä¸­æ–­ä¿¡å·ï¼Œå‡†å¤‡åœæ­¢æœåŠ¡å™¨");
     g_running = false;
 }
 
-OpcUaServer::OpcUaServer(quint16 port, int period, QObject * parent)
+OpcUaServer::OpcUaServer(OpcUaConfig config, QObject * parent)
     : QObject(parent)
-    , m_period(period)
-    , m_port(port)
+    , m_config(config)
     , m_pTimer(new QTimer(this))
 {
-    // ×¢²áĞÅºÅ´¦ÀíÆ÷£¬½ÓÊÕ Ctrl+C ÖĞ¶ÏĞÅºÅ
+    // æ³¨å†Œä¿¡å·å¤„ç†å™¨ï¼Œæ¥æ”¶ Ctrl+C ä¸­æ–­ä¿¡å·
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    // ´´½¨·şÎñÆ÷ÊµÀı
-    m_server = UA_Server_new();
-    m_config = UA_Server_getConfig(m_server);
+    // åˆ›å»ºæœåŠ¡å™¨å®ä¾‹
+    m_pServer       = UA_Server_new();
+    m_pServerConfig = UA_Server_getConfig(m_pServer);
+
+    connect(m_pTimer, &QTimer::timeout, this, &OpcUaServer::onTimerTimeout);
+}
+
+void OpcUaServer::onTimerTimeout()
+{
+    UA_Server_run_iterate(m_pServer, false); // éé˜»å¡æ¨¡å¼;
+    // updateNodeData(const QString & nodeBrowseName, const QVariant & value);
 }
 
 OpcUaServer::~OpcUaServer()
 {
-    if (m_server)
+    if (m_pServer)
     {
-        UA_Server_delete(m_server);
+        UA_Server_delete(m_pServer);
     }
 }
 
-void OpcUaServer::startServer()
+bool OpcUaServer::startServer()
 {
-    // ÉèÖÃ·şÎñÆ÷¼àÌı¶Ë¿ÚÎª m_port£¬¼àÌıËùÓĞ IP£¨0.0.0.0£©£¬¼´ opc.tcp://<±¾»úIP>:m_port
-    UA_ServerConfig_setMinimal(m_config, m_port, NULL);
+    // è®¾ç½®æœåŠ¡å™¨ç›‘å¬ç«¯å£ä¸º m_portï¼Œç›‘å¬æ‰€æœ‰ IPï¼ˆ0.0.0.0ï¼‰ï¼Œå³ opc.tcp://<æœ¬æœºIP>:m_port
+    UA_ServerConfig_setMinimal(m_pServerConfig, m_config.port, NULL);
 
-    // Ìí¼Ó±äÁ¿½Úµã£¨Ê¾Àı£©
+    // è®¾ç½®æœåŠ¡å™¨URL
+    // UA_String hostname = UA_STRING_ALLOC(m_config.url.toUtf8().constData());
+    // UA_ServerConfig_sethostname(UA_Server_getConfig(m_pServer), hostname);
+    // UA_String_clear(&hostname);
 
-    // Æô¶¯·şÎñÆ÷Ö÷Ñ­»·£¬Ö±µ½ running Îª false
-    UA_StatusCode retval = UA_Server_run(m_server, &g_running); // ÕâÀï»á×èÈû£¬ĞèÒªÖØ¹¹
+    // æ·»åŠ å˜é‡èŠ‚ç‚¹ï¼ˆç¤ºä¾‹ï¼‰
+    if (!createNodes() || m_config.devices.isEmpty())
+    {
+        qDebug() << "Failed to create nodes";
+        return false;
+    }
+    m_pTimer->start(m_config.devices.first().period);
+    // å¯åŠ¨æœåŠ¡å™¨ä¸»å¾ªç¯ï¼Œç›´åˆ° running ä¸º false
+    // return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD;; // è¿™é‡Œä¼šé˜»å¡ï¼Œéœ€è¦é‡æ„
 }
 
 void OpcUaServer::stopServer()
@@ -63,9 +80,99 @@ void OpcUaServer::addNode(UA_NodeId node)
 
 void OpcUaServer::updateNodeData(const QString & nodeBrowseName, const QVariant & value)
 {
+    if (!m_nodeMap.contains(nodeBrowseName))
+    {
+        qWarning() << "Unknown node:" << nodeBrowseName;
+        return;
+    }
+
+    UA_NodeId  nodeId = m_nodeMap[nodeBrowseName];
+    UA_Variant var;
+    UA_Variant_init(&var);
+
+    if (value.type() == QVariant::Double)
+    {
+        double val = value.toDouble();
+        UA_Variant_setScalar(&var, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
+    }
+    else if (value.type() == QVariant::Int)
+    {
+        int32_t val = value.toInt();
+        UA_Variant_setScalar(&var, &val, &UA_TYPES[UA_TYPES_INT32]);
+    }
+    // å…¶ä»–ç±»å‹å¤„ç†...
+
+    UA_Server_writeValue(m_pServer, nodeId, var);
 }
 
 bool OpcUaServer::createNodes()
 {
-    return false;
+    for (DeviceConfig & device : m_config.devices)
+    {
+        // åˆ›å»ºè®¾å¤‡çˆ¶èŠ‚ç‚¹
+        UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
+        objAttr.displayName         = UA_LOCALIZEDTEXT("en", device.device_name.toUtf8().data());
+
+        UA_NodeId deviceNodeId;
+        UA_Server_addObjectNode(m_pServer,
+                                UA_NODEID_STRING(1, device.device_node_id.toUtf8().data()),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, device.device_name.toUtf8().data()),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                objAttr,
+                                nullptr,
+                                &deviceNodeId);
+
+        // åˆ›å»ºå˜é‡å­èŠ‚ç‚¹
+        for (VariableConfig & var : device.variables)
+        {
+            UA_NodeId varNodeId = createVariableNode(device.device_node_id, var);
+            if (UA_NodeId_isNull(&varNodeId))
+            {
+                qWarning() << "Failed to create node:" << var.browse_name;
+                continue;
+            }
+            m_nodeMap.insert(var.browse_name, varNodeId);
+        }
+    }
+    return true;
+}
+
+UA_NodeId OpcUaServer::createVariableNode(QString &parentNodeIdStr, VariableConfig &varConfig)
+{
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en", varConfig.display_name.toUtf8().data());
+    attr.accessLevel = varConfig.access_level == "rw"
+        ? (UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE)
+        : UA_ACCESSLEVELMASK_READ;
+
+    // è®¾ç½®æ•°æ®ç±»å‹å’Œåˆå§‹å€¼
+    if (varConfig.data_type == "double") {
+        attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+        double val = varConfig.default_value.toDouble();
+        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
+    } else if (varConfig.data_type == "int32") {
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+        int32_t val = varConfig.default_value.toInt();
+        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    }
+
+    UA_NodeId nodeId = UA_NODEID_NULL;
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, varConfig.browse_name.toUtf8().data());
+    UA_NodeId parentNodeId = UA_NODEID_STRING(1, parentNodeIdStr.toUtf8().data());
+
+    UA_StatusCode status = UA_Server_addVariableNode(
+        m_pServer, UA_NODEID_NULL, parentNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, nullptr, &nodeId);
+
+    if (status != UA_STATUSCODE_GOOD) {
+        qWarning() << "Failed to add variable node:" << varConfig.browse_name
+                   << "Status:" << UA_StatusCode_name(status);
+        return UA_NODEID_NULL;
+    }
+
+    return nodeId;
 }

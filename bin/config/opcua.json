@@ -10,7 +10,7 @@
                     "variables": [
                         {
                             "browse_name": "Current",
-                            "display_name": "电流",
+                            "display_name": "dianliu",
                             "data_type": "double",
                             "default_value": 0.0,
                             "access_level": "rw",
@@ -20,7 +20,7 @@
                         },
                         {
                             "browse_name": "Voltage",
-                            "display_name": "电压",
+                            "display_name": "dianya",
                             "data_type": "double",
                             "default_value": 0.0,
                             "access_level": "rw",
@@ -30,7 +30,7 @@
                         },
                         {
                             "browse_name": "Power",
-                            "display_name": "功率",
+                            "display_name": "gonglv",
                             "data_type": "double",
                             "default_value": 0.0,
                             "access_level": "rw",
@@ -47,7 +47,7 @@
                     "variables": [
                         {
                             "browse_name": "SystemStatus",
-                            "display_name": "系统状态",
+                            "display_name": "xitongzhuangtai",
                             "data_type": "int32",
                             "default_value": 0,
                             "access_level": "ro",
@@ -55,7 +55,7 @@
                         },
                         {
                             "browse_name": "Speed",
-                            "display_name": "速度",
+                            "display_name": "sudu",
                             "data_type": "double",
                             "default_value": 0.0,
                             "access_level": "rw",
@@ -65,7 +65,7 @@
                         },
                         {
                             "browse_name": "Heading",
-                            "display_name": "航向",
+                            "display_name": "hangxiang",
                             "data_type": "double",
                             "default_value": 0.0,
                             "access_level": "rw",

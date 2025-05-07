@@ -7,8 +7,9 @@
 
 #include "config.h"
 #include "server.h"
+#include "opcua_global.h"
 
-class ServerManager : public QObject
+class OPCUA_EXPORT ServerManager : public QObject
 {
     Q_OBJECT
 public:

@@ -5,7 +5,9 @@
 #include <QVector>
 #include <QVariant>
 
-// ±äÁ¿½ÚµãÅäÖÃ
+#include "opcua_global.h"
+
+// å˜é‡èŠ‚ç‚¹é…ç½®
 struct VariableConfig
 {
     QString  browse_name;
@@ -18,7 +20,7 @@ struct VariableConfig
     QString  description;
 };
 
-// Éè±¸ÅäÖÃ
+// è®¾å¤‡é…ç½®
 struct DeviceConfig
 {
     QString                 device_name;
@@ -27,14 +29,15 @@ struct DeviceConfig
     QVector<VariableConfig> variables;
 };
 
-// OPC UA·şÎñÆ÷ÅäÖÃ
+// OPC UAæœåŠ¡å™¨é…ç½®
 struct OpcUaConfig
 {
     QString               url;
+    quint16               port;
     QVector<DeviceConfig> devices;
 };
 
-class ConfigParser
+class OPCUA_EXPORT ConfigParser
 {
 public:
     static bool parseConfig(const QString & filePath, QVector<OpcUaConfig> & outConfigs);

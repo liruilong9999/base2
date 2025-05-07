@@ -11,8 +11,9 @@ set(QT_LIBRARY_LIST "Core" "Xml")
 #include_directories(${ROOT_DIR}/include)
 
 # 链接库
-# set(SELF_LIBRARY_LIST  "cycloneddsidl" "cycloneddsidlcxx" "ddsc" "ddscxx" "lddsbus")
-# 预编译
+set(SELF_LIBRARY_LIST  "WS2_32" "iphlpapi" "open62541")
+
+# 预编译  
 add_compile_definitions(OPCUA_LIBRARY)  
 
 # 创建项目   
