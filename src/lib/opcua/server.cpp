@@ -36,7 +36,21 @@ OpcUaServer::OpcUaServer(OpcUaConfig config, QObject * parent)
 void OpcUaServer::onTimerTimeout()
 {
     UA_Server_run_iterate(m_pServer, false); // 非阻塞模式;
-    // updateNodeData(const QString & nodeBrowseName, const QVariant & value);
+
+    static double qq = 0.1;
+    //    Created variable node: "Current"
+    // Created variable node: "Voltage"
+    // Created variable node: "Power"
+    // Created variable node: "SystemStatus"
+    // Created variable node: "Speed"
+    // Created variable node: "Heading
+    updateNodeData("Current", QVariant(11.0));
+    updateNodeData("Voltage", QVariant(22.0));
+    updateNodeData("Power", QVariant(33.0));
+    updateNodeData("SystemStatus", QVariant(44));
+    updateNodeData("Speed", QVariant(55.0 + qq));
+    updateNodeData("Heading", QVariant(66.0));
+    qq += 0.1;
 }
 
 OpcUaServer::~OpcUaServer()
@@ -63,6 +77,9 @@ bool OpcUaServer::startServer()
         qDebug() << "Failed to create nodes";
         return false;
     }
+    if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
+        return false;
+
     m_pTimer->start(m_config.devices.first().period);
     // 启动服务器主循环，直到 running 为 false
     // return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD;; // 这里会阻塞，需要重构
@@ -104,71 +121,134 @@ void OpcUaServer::updateNodeData(const QString & nodeBrowseName, const QVariant 
 
     UA_Server_writeValue(m_pServer, nodeId, var);
 }
-
 bool OpcUaServer::createNodes()
 {
     for (DeviceConfig & device : m_config.devices)
     {
         // 创建设备父节点
         UA_ObjectAttributes objAttr = UA_ObjectAttributes_default;
-        objAttr.displayName         = UA_LOCALIZEDTEXT("en", device.device_name.toUtf8().data());
 
-        UA_NodeId deviceNodeId;
-        UA_Server_addObjectNode(m_pServer,
-                                UA_NODEID_STRING(1, device.device_node_id.toUtf8().data()),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                UA_QUALIFIEDNAME(1, device.device_name.toUtf8().data()),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                objAttr,
-                                nullptr,
-                                &deviceNodeId);
+        QByteArray       deviceNameUtf8 = device.device_name.toUtf8();
+        UA_LocalizedText deviceName     = UA_LOCALIZEDTEXT("en", const_cast<char *>(deviceNameUtf8.constData()));
+
+        objAttr.displayName = deviceName;
+
+        UA_NodeId     deviceNodeId;
+        UA_StatusCode status = UA_Server_addObjectNode(
+            m_pServer,
+            UA_NODEID_STRING(1, "ElecSenser"), 
+            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+            UA_QUALIFIEDNAME(1, device.device_name.toUtf8().data()),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+            objAttr,
+            nullptr,
+            &deviceNodeId);
+
+        if (status != UA_STATUSCODE_GOOD)
+        {
+            qWarning() << "Failed to create device node:" << device.device_name
+                       << "Status:" << UA_StatusCode_name(status);
+            continue;
+        }
 
         // 创建变量子节点
         for (VariableConfig & var : device.variables)
         {
-            UA_NodeId varNodeId = createVariableNode(device.device_node_id, var);
+            UA_NodeId varNodeId = createVariableNode(deviceNodeId, var,device.device_name); // ✅ 改为传 deviceNodeId
             if (UA_NodeId_isNull(&varNodeId))
             {
-                qWarning() << "Failed to create node:" << var.browse_name;
+                qWarning() << "Failed to create variable node:" << var.browse_name;
                 continue;
             }
             m_nodeMap.insert(var.browse_name, varNodeId);
+            qDebug() << "Created variable node:" << var.browse_name;
         }
     }
     return true;
 }
-
-UA_NodeId OpcUaServer::createVariableNode(QString &parentNodeIdStr, VariableConfig &varConfig)
+void printNodeId(const UA_NodeId & nodeId)
 {
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en", varConfig.display_name.toUtf8().data());
-    attr.accessLevel = varConfig.access_level == "rw"
-        ? (UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE)
-        : UA_ACCESSLEVELMASK_READ;
-
-    // 设置数据类型和初始值
-    if (varConfig.data_type == "double") {
-        attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-        double val = varConfig.default_value.toDouble();
-        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
-    } else if (varConfig.data_type == "int32") {
-        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        int32_t val = varConfig.default_value.toInt();
-        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    QString result = QString("ns=%1;").arg(nodeId.namespaceIndex);
+    switch (nodeId.identifierType)
+    {
+    case UA_NODEIDTYPE_NUMERIC :
+        result += QString("i=%1").arg(nodeId.identifier.numeric);
+        break;
+    case UA_NODEIDTYPE_STRING :
+        result += QString("s=%1").arg(QString::fromUtf8((char *)nodeId.identifier.string.data,
+                                                        static_cast<int>(nodeId.identifier.string.length)));
+        break;
+    case UA_NODEIDTYPE_GUID :
+        result += "g=<GUID>"; // 可根据需要实现 GUID 打印
+        break;
+    case UA_NODEIDTYPE_BYTESTRING :
+        result += "b=<ByteString>"; // 可根据需要实现 ByteString 打印
+        break;
+    default :
+        result += "<Unknown>";
     }
 
-    UA_NodeId nodeId = UA_NODEID_NULL;
-    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, varConfig.browse_name.toUtf8().data());
-    UA_NodeId parentNodeId = UA_NODEID_STRING(1, parentNodeIdStr.toUtf8().data());
+    qDebug() << "NodeId:" << result;
+}
+
+UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConfig & varConfig, QString & deviceName)
+{
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+
+    QByteArray       displayNameUtf8 = varConfig.display_name.toUtf8();
+    UA_LocalizedText displayName     = UA_LOCALIZEDTEXT("en", const_cast<char *>(displayNameUtf8.constData()));
+    attr.displayName                 = displayName;
+
+    attr.accessLevel = (varConfig.access_level == "rw")
+                           ? (UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE)
+                           : UA_ACCESSLEVELMASK_READ;
+
+    // 设置数据类型和初始值
+    if (varConfig.data_type == "double")
+    {
+        attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+        double val    = varConfig.default_value.toDouble();
+        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
+    }
+    else if (varConfig.data_type == "int32")
+    {
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+        int32_t val   = varConfig.default_value.toInt();
+        UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    }
+    else
+    {
+        qWarning() << "Unsupported data type:" << varConfig.data_type;
+        return UA_NODEID_NULL;
+    }
+    QString    nodeIdStr  = deviceName + "_" + varConfig.browse_name;
+    QByteArray nodeIdUtf8 = nodeIdStr.toUtf8();                                // 保证生命周期
+    UA_NodeId  nodeId     = UA_NODEID_STRING_ALLOC(1, nodeIdUtf8.constData()); // 使用稳定数据
+
+
+    QByteArray       browseNameUtf8 = varConfig.browse_name.toUtf8();
+    UA_QualifiedName browseName     = UA_QUALIFIEDNAME(1, const_cast<char *>(browseNameUtf8.constData()));
+
+
 
     UA_StatusCode status = UA_Server_addVariableNode(
-        m_pServer, UA_NODEID_NULL, parentNodeId,
+        m_pServer,
+        nodeId,       //  NodeId
+        parentNodeId,   // ✅ 传入的是已创建的真实父节点 ID
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-        attr, nullptr, &nodeId);
+        browseName,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr,
+        nullptr,
+        &nodeId);
 
-    if (status != UA_STATUSCODE_GOOD) {
+
+        printNodeId(nodeId);
+
+
+    if (status != UA_STATUSCODE_GOOD)
+    {
         qWarning() << "Failed to add variable node:" << varConfig.browse_name
                    << "Status:" << UA_StatusCode_name(status);
         return UA_NODEID_NULL;

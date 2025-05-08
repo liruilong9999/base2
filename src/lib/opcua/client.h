@@ -1,31 +1,31 @@
-#ifndef CLIENT_H
-#define CLIENT_H
+#ifndef OPCUACLIENT_H
+#define OPCUACLIENT_H
 
-#include <open62541/client.h>
 #include <QObject>
-#include "config.h"
-//
-//class OpcUaClient : public QObject
-//{
-//    Q_OBJECT
-//public:
-//    explicit OpcUaClient(QObject * parent = nullptr);
-//    ~OpcUaClient();
-//
-//    // 连接服务器
-//    bool connect(const QString & url);
-//    // 断开连接
-//    void disconnect();
-//    // 写入数据
-//    bool writeValue(const QString & nodeId, const QVariant & value);
-//    // 订阅数据变更
-//    void subscribe(const QString & nodeId, int intervalMs);
-//
-//signals:
-//    void valueChanged(const QString & nodeId, const QVariant & value);
-//
-//private:
-//    UA_Client * m_client; // OPC UA 客户端实例
-//};
+#include <QVector>
+#include <QString>
+#include <QVariant>
+#include "config.h" // 你提供的配置结构
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 
-#endif // CLIENT_H
+#include "opcua_global.h"
+
+class OPCUA_EXPORT OpcUaClient : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit OpcUaClient(QObject * parent = nullptr);
+    ~OpcUaClient();
+
+    bool connectToServer(const QString & url);
+    void disconnectFromServer();
+
+    QVariant readValue(const QString & fullNodeId);
+
+private:
+    UA_Client * m_client = nullptr;
+};
+
+#endif // OPCUACLIENT_H

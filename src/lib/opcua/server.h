@@ -34,7 +34,7 @@ public:
     bool createNodes();
 
     // 创建单个变量节点
-    UA_NodeId createVariableNode(QString & parentNodeIdStr, VariableConfig & varConfig);
+    UA_NodeId createVariableNode(UA_NodeId & parentNodeIdStr, VariableConfig & varConfig,QString & deviceName);
 
 public slots:
     void onTimerTimeout();

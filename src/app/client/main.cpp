@@ -5,7 +5,7 @@
 // 多节点读取函数
 static UA_StatusCode multiRead(UA_Client * client)
 {
-    const int      arraySize = 6;
+    const int      arraySize = 3;
     UA_ReadValueId itemArray[arraySize]; // 存储需要读取的节点信息
 
     // 初始化每个要读取的节点
@@ -19,9 +19,9 @@ static UA_StatusCode multiRead(UA_Client * client)
     itemArray[0].nodeId = UA_NODEID_STRING(1, "info1");
     itemArray[1].nodeId = UA_NODEID_STRING(1, "info2");
     itemArray[2].nodeId = UA_NODEID_STRING(1, "info3");
-    itemArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
-    itemArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
-    itemArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
+    //itemArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
+    //itemArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
+    //itemArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
 
     // 创建读取请求
     UA_ReadRequest request;
@@ -199,12 +199,12 @@ int main(void)
         printf("---- Before write ---- \n");
         multiRead(client);
 
-        printf("\n\n");
-        multiWrite(client, mIndex);
+        //printf("\n\n");
+        //multiWrite(client, mIndex);
 
-        printf("---- After write ---- \n");
-        multiRead(client);
-        mIndex++;
+        //printf("---- After write ---- \n");
+        //multiRead(client);
+        //mIndex++;
     }
 
     // 删除客户端，断开连接

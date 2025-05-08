@@ -1,83 +1,81 @@
-#include "client.h"
+﻿#include "client.h"
 #include <QDebug>
-//
-//#include <open62541/client_config_default.h>
-//
-//OpcUaClient::OpcUaClient(QObject * parent)
-//    : QObject(parent)
-//    , m_client(UA_Client_new())
-//{
-//    UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
-//}
-//
-//OpcUaClient::~OpcUaClient()
-//{
-//    disconnect();
-//    UA_Client_delete(m_client);
-//}
-//
-//bool OpcUaClient::connect(const QString & url)
-//{
-//    UA_StatusCode status = UA_Client_connect(m_client, url.toUtf8());
-//    if (status != UA_STATUSCODE_GOOD)
-//    {
-//        qWarning() << "连接失败:" << UA_StatusCode_name(status);
-//        return false;
-//    }
-//    return true;
-//}
-//
-//void OpcUaClient::disconnect()
-//{
-//    UA_Client_disconnect(m_client);
-//}
-//
-//bool OpcUaClient::writeValue(const QString & nodeId, const QVariant & value)
-//{
-//    UA_NodeId  uaNodeId = UA_NODEID_STRING(1, nodeId.toUtf8());
-//    UA_Variant uaValue;
-//    UA_Variant_init(&uaValue);
-//
-//    // 根据类型设置值
-//    switch (value.type())
-//    {
-//    case QVariant::Int :
-//        UA_Variant_setScalar(&uaValue, (int32_t *)&value.toInt(), &UA_TYPES[UA_TYPES_INT32]);
-//        break;
-//    // 其他类型处理...
-//    default :
-//        qWarning() << "不支持的数据类型";
-//        return false;
-//    }
-//
-//    UA_StatusCode status = UA_Client_writeValueAttribute(m_client, uaNodeId, &uaValue);
-//    return (status == UA_STATUSCODE_GOOD);
-//}
-//
-//void OpcUaClient::subscribe(const QString & nodeId, int intervalMs)
-//{
-//    // 创建订阅
-//    UA_CreateSubscriptionRequest subReq   = UA_CreateSubscriptionRequest_default();
-//    subReq.requestedPublishingInterval    = intervalMs;
-//    UA_CreateSubscriptionResponse subResp = UA_Client_Subscriptions_create(m_client, subReq, nullptr, nullptr, nullptr);
-//
-//    // 创建监控项
-//    UA_MonitoredItemCreateRequest itemReq;
-//    UA_MonitoredItemCreateRequest_init(&itemReq);
-//    itemReq.itemToMonitor.nodeId      = UA_NODEID_STRING(1, nodeId.toUtf8());
-//    itemReq.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
-//    itemReq.monitoringMode            = UA_MONITORINGMODE_REPORTING;
-//
-//    UA_Client_MonitoredItems_createDataChange(
-//        m_client, subResp.subscriptionId, UA_TIMESTAMPSTORETURN_BOTH, itemReq, nullptr, [](UA_Client * client, UA_UInt32 subId, void * subContext, UA_UInt32 monId, void * monContext, UA_DataValue * value) {
-//            // 触发信号
-//            QVariant var;
-//            if (value->hasValue && value->value.type == &UA_TYPES[UA_TYPES_INT32])
-//            {
-//                var = QVariant(*(int32_t *)value->value.data);
-//            }
-//            OpcUaClient * clientObj = static_cast<OpcUaClient *>(monContext);
-//            emit          clientObj->valueChanged(QString::fromUtf8(UA_String_getChars(&value->value.type->typeName)), var);
-//        },
-//        this);
-//}
+
+OpcUaClient::OpcUaClient(QObject * parent)
+    : QObject(parent)
+{
+    m_client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
+}
+
+OpcUaClient::~OpcUaClient()
+{
+    if (m_client)
+    {
+        UA_Client_disconnect(m_client);
+        UA_Client_delete(m_client);
+    }
+}
+
+bool OpcUaClient::connectToServer(const QString & url)
+{
+    UA_StatusCode status = UA_Client_connect(m_client, url.toUtf8().constData());
+    if (status != UA_STATUSCODE_GOOD)
+    {
+        qWarning() << "Failed to connect to server:" << UA_StatusCode_name(status);
+        return false;
+    }
+    return true;
+}
+
+void OpcUaClient::disconnectFromServer()
+{
+    if (m_client)
+    {
+        UA_Client_disconnect(m_client);
+    }
+}
+
+QVariant OpcUaClient::readValue(const QString & fullNodeId)
+{
+    // 1. 转换节点ID
+    UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, fullNodeId.toUtf8().constData());
+
+    // 2. 初始化读取请求
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead     = UA_ReadValueId_new();
+    req.nodesToReadSize = 1;
+
+    // 3. 配置要读取的节点属性
+    req.nodesToRead[0].nodeId       = nodeId;
+    req.nodesToRead[0].attributeId  = UA_ATTRIBUTEID_VALUE;
+    req.nodesToRead[0].indexRange   = UA_STRING_NULL;                       // 必须初始化
+    req.nodesToRead[0].dataEncoding = UA_QUALIFIEDNAME(0, "DefaultBinary"); // 编码方式
+
+    // 4. 执行读取
+    UA_ReadResponse resp   = UA_Client_Service_read(m_client, req);
+    UA_StatusCode   retval = resp.responseHeader.serviceResult;
+
+    QVariant result;
+    if (retval == UA_STATUSCODE_GOOD && resp.resultsSize > 0)
+    {
+        UA_DataValue * dv = &resp.results[0];
+        if (dv->hasValue && UA_Variant_hasScalarType(&dv->value, &UA_TYPES[UA_TYPES_DOUBLE]))
+        {
+            result = *static_cast<double *>(dv->value.data);
+        }
+    }
+    else
+    {
+        qWarning() << "Read failed. Status:" << UA_StatusCode_name(retval)
+                   << "| Node:" << fullNodeId;
+    }
+
+    // 5. 清理资源
+    //UA_ReadRequest_clear(&req);
+    //UA_ReadResponse_clear(&resp);
+    //UA_NodeId_clear(&nodeId);
+
+    return result;
+}
