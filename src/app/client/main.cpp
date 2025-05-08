@@ -5,7 +5,7 @@
 // 多节点读取函数
 static UA_StatusCode multiRead(UA_Client * client)
 {
-    const int      arraySize = 3;
+    const int      arraySize = 1;
     UA_ReadValueId itemArray[arraySize]; // 存储需要读取的节点信息
 
     // 初始化每个要读取的节点
@@ -16,12 +16,12 @@ static UA_StatusCode multiRead(UA_Client * client)
     }
 
     // 设置各节点的 NodeId
-    itemArray[0].nodeId = UA_NODEID_STRING(1, "info1");
-    itemArray[1].nodeId = UA_NODEID_STRING(1, "info2");
-    itemArray[2].nodeId = UA_NODEID_STRING(1, "info3");
-    //itemArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
-    //itemArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
-    //itemArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
+    itemArray[0].nodeId = UA_NODEID_STRING(1, "navigation_Speed");
+    // itemArray[1].nodeId = UA_NODEID_STRING(1, "info2");
+    // itemArray[2].nodeId = UA_NODEID_STRING(1, "info3");
+    // itemArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
+    // itemArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
+    // itemArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
 
     // 创建读取请求
     UA_ReadRequest request;
@@ -81,6 +81,16 @@ static UA_StatusCode multiRead(UA_Client * client)
                 UA_UInt32 * ptr = (UA_UInt32 *)out.data;
                 printf("UInt32 Value: %d\n", *ptr);
             }
+            else if (out.type == &UA_TYPES[UA_TYPES_INT32])
+            {
+                UA_Int32 * ptr = (UA_Int32 *)out.data;
+                printf("Int32 Value: %d\n", *ptr);
+            }
+            else if (out.type == &UA_TYPES[UA_TYPES_DOUBLE])
+            {
+                UA_Double * ptr = (UA_Double *)out.data;
+                printf("UA_Double Value: %.2f\n", *ptr);
+            }
         }
     }
 
@@ -89,9 +99,9 @@ static UA_StatusCode multiRead(UA_Client * client)
 }
 
 // 多节点写入函数
-UA_StatusCode multiWrite(UA_Client * client, UA_UInt32 Index)
+UA_StatusCode multiWrite(UA_Client * client, UA_Double Index)
 {
-    const int     arraySize = 6;
+    const int     arraySize = 1;
     UA_WriteValue wValueArray[arraySize]; // 写入数组
 
     // 初始化写入项
@@ -102,56 +112,22 @@ UA_StatusCode multiWrite(UA_Client * client, UA_UInt32 Index)
     }
 
     // 设置 NodeId
-    wValueArray[0].nodeId = UA_NODEID_STRING(1, "info1");
-    wValueArray[1].nodeId = UA_NODEID_STRING(1, "info2");
-    wValueArray[2].nodeId = UA_NODEID_STRING(1, "info3");
-    wValueArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
-    wValueArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
-    wValueArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
+    wValueArray[0].nodeId = UA_NODEID_STRING(1, "navigation_Speed");
+    // wValueArray[1].nodeId = UA_NODEID_STRING(1, "info2");
+    // wValueArray[2].nodeId = UA_NODEID_STRING(1, "info3");
+    // wValueArray[3].nodeId = UA_NODEID_STRING(1, "uint1");
+    // wValueArray[4].nodeId = UA_NODEID_STRING(1, "uint2");
+    // wValueArray[5].nodeId = UA_NODEID_STRING(1, "uint3");
 
     UA_Variant infoVar;
 
     // 设置 info1 的值为 "world1"
-    UA_LocalizedText info1Value = UA_LOCALIZEDTEXT("en-US", "world1");
+    // 设置 uint1 的值
+    UA_Double uint1Value = 11.00 + Index;
     UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &info1Value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Variant_setScalar(&infoVar, &uint1Value, &UA_TYPES[UA_TYPES_DOUBLE]);
     wValueArray[0].value.value    = infoVar;
     wValueArray[0].value.hasValue = true;
-
-    // 设置 info2 的值为 "world2"
-    UA_LocalizedText info2Value = UA_LOCALIZEDTEXT("en-US", "world2");
-    UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &info2Value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    wValueArray[1].value.value    = infoVar;
-    wValueArray[1].value.hasValue = true;
-
-    // 设置 info3 的值为 "world3"
-    UA_LocalizedText info3Value = UA_LOCALIZEDTEXT("en-US", "world3");
-    UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &info3Value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    wValueArray[2].value.value    = infoVar;
-    wValueArray[2].value.hasValue = true;
-
-    // 设置 uint1 的值
-    UA_UInt32 uint1Value = 101 + Index;
-    UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &uint1Value, &UA_TYPES[UA_TYPES_UINT32]);
-    wValueArray[3].value.value    = infoVar;
-    wValueArray[3].value.hasValue = true;
-
-    // 设置 uint2 的值
-    UA_UInt32 uint2Value = 102 + Index;
-    UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &uint2Value, &UA_TYPES[UA_TYPES_UINT32]);
-    wValueArray[4].value.value    = infoVar;
-    wValueArray[4].value.hasValue = true;
-
-    // 设置 uint3 的值
-    UA_UInt32 uint3Value = 103 + Index;
-    UA_Variant_init(&infoVar);
-    UA_Variant_setScalar(&infoVar, &uint3Value, &UA_TYPES[UA_TYPES_UINT32]);
-    wValueArray[5].value.value    = infoVar;
-    wValueArray[5].value.hasValue = true;
 
     // 构造写入请求
     UA_WriteRequest wReq;
@@ -179,7 +155,7 @@ UA_StatusCode multiWrite(UA_Client * client, UA_UInt32 Index)
 
 int main(void)
 {
-    UA_UInt32 mIndex;
+    UA_Double mIndex;
     mIndex = 0;
 
     UA_Client * client = UA_Client_new();
@@ -199,12 +175,12 @@ int main(void)
         printf("---- Before write ---- \n");
         multiRead(client);
 
-        //printf("\n\n");
-        //multiWrite(client, mIndex);
+        printf("\n\n");
+        multiWrite(client, mIndex);
 
-        //printf("---- After write ---- \n");
-        //multiRead(client);
-        //mIndex++;
+        printf("---- After write ---- \n");
+        multiRead(client);
+        mIndex += 0.1;
     }
 
     // 删除客户端，断开连接

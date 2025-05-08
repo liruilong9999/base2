@@ -49,7 +49,31 @@ bool ConfigParser::parseConfig(const QString & filePath, QVector<OpcUaConfig> & 
             DeviceConfig device;
             device.device_name    = deviceObj.value("device_name").toString();
             device.device_node_id = deviceObj.value("device_node_id").toString();
-            device.period         = deviceObj.value("period").toInt(100);
+
+            QStringList nodeList = device.device_node_id.split(";");
+            if (nodeList.size() < 2)
+            {
+                qDebug() << "节点ID格式错误：应该为 ns=1;s=ElecSenser 。 ";
+                continue;
+            }
+            QStringList nsList = nodeList[0].split("=");
+            if (nsList.size() < 2 || nsList[0] != "ns")
+            {
+                qDebug() << "节点ID格式错误：应该为 ns=1;s=ElecSenser 。 ";
+                continue;
+            }
+            device.node_ns = nsList[1];
+
+            QStringList ndIdList = nodeList[1].split("=");
+            if (ndIdList.size() < 2 || ndIdList[0] != "s")
+            {
+                qDebug() << "节点ID格式错误：应该为 ns=1;s=ElecSenser 。 ";
+                continue;
+            }
+
+            device.device_node_id = ndIdList[1];
+
+            device.period = deviceObj.value("period").toInt(100);
 
             QJsonArray varsArray = deviceObj.value("variables").toArray();
             for (const QJsonValue & varVal : varsArray)

@@ -24,6 +24,7 @@ struct VariableConfig
 struct DeviceConfig
 {
     QString                 device_name;
+    QString                 node_ns;
     QString                 device_node_id;
     int                     period{100};
     QVector<VariableConfig> variables;

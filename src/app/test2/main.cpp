@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     OpcUaClient client;
     if (client.connectToServer("opc.tcp://127.0.0.1:4840"))
     {
-        QVariant val = client.readValue( "elecSenser/Current");
+        QVariant val = client.readValue( "Current");
         qDebug() << "Current:" << val.toDouble();
 
    /*     val = client.readValue("navigation", "SystemStatus", "int32");

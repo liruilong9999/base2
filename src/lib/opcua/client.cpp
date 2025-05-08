@@ -39,7 +39,7 @@ void OpcUaClient::disconnectFromServer()
 QVariant OpcUaClient::readValue(const QString & fullNodeId)
 {
     // 1. 转换节点ID
-    UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, fullNodeId.toUtf8().constData());
+    UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, "Current");
 
     // 2. 初始化读取请求
     UA_ReadRequest req;

@@ -16,6 +16,11 @@ static void stopHandler(int sign)
     // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "接收到 Ctrl+C 中断信号，准备停止服务器");
     g_running = false;
 }
+UA_NodeId createNodeIdFromQString(const QString & str)
+{
+    QByteArray utf8 = str.toUtf8();
+    return UA_NODEID_STRING_ALLOC(1, utf8.constData()); // utf8 生命周期在调用者手里
+}
 
 OpcUaServer::OpcUaServer(OpcUaConfig config, QObject * parent)
     : QObject(parent)
@@ -44,12 +49,15 @@ void OpcUaServer::onTimerTimeout()
     // Created variable node: "SystemStatus"
     // Created variable node: "Speed"
     // Created variable node: "Heading
-    updateNodeData("Current", QVariant(11.0));
-    updateNodeData("Voltage", QVariant(22.0));
-    updateNodeData("Power", QVariant(33.0));
-    updateNodeData("SystemStatus", QVariant(44));
-    updateNodeData("Speed", QVariant(55.0 + qq));
-    updateNodeData("Heading", QVariant(66.0));
+    if (qq == 0.1)
+    {
+        updateNodeData("Current", QVariant(11.0));
+        updateNodeData("Voltage", QVariant(22.0));
+        updateNodeData("Power", QVariant(33.0));
+        updateNodeData("SystemStatus", QVariant(44));
+        updateNodeData("Speed", QVariant(55.0 + qq));
+        updateNodeData("Heading", QVariant(66.0));
+    }
     qq += 0.1;
 }
 
@@ -136,7 +144,7 @@ bool OpcUaServer::createNodes()
         UA_NodeId     deviceNodeId;
         UA_StatusCode status = UA_Server_addObjectNode(
             m_pServer,
-            UA_NODEID_STRING(1, "ElecSenser"), 
+            createNodeIdFromQString(device.device_node_id),
             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
             UA_QUALIFIEDNAME(1, device.device_name.toUtf8().data()),
@@ -155,7 +163,7 @@ bool OpcUaServer::createNodes()
         // 创建变量子节点
         for (VariableConfig & var : device.variables)
         {
-            UA_NodeId varNodeId = createVariableNode(deviceNodeId, var,device.device_name); // ✅ 改为传 deviceNodeId
+            UA_NodeId varNodeId = createVariableNode(deviceNodeId, var, device.device_name); // ✅ 改为传 deviceNodeId
             if (UA_NodeId_isNull(&varNodeId))
             {
                 qWarning() << "Failed to create variable node:" << var.browse_name;
@@ -163,6 +171,7 @@ bool OpcUaServer::createNodes()
             }
             m_nodeMap.insert(var.browse_name, varNodeId);
             qDebug() << "Created variable node:" << var.browse_name;
+            // break;
         }
     }
     return true;
@@ -222,20 +231,16 @@ UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConf
         qWarning() << "Unsupported data type:" << varConfig.data_type;
         return UA_NODEID_NULL;
     }
-    QString    nodeIdStr  = deviceName + "_" + varConfig.browse_name;
-    QByteArray nodeIdUtf8 = nodeIdStr.toUtf8();                                // 保证生命周期
-    UA_NodeId  nodeId     = UA_NODEID_STRING_ALLOC(1, nodeIdUtf8.constData()); // 使用稳定数据
-
+    QString   nodeIdStr = deviceName + "_" + varConfig.browse_name;
+    UA_NodeId nodeId    = createNodeIdFromQString(nodeIdStr); // 使用稳定数据
 
     QByteArray       browseNameUtf8 = varConfig.browse_name.toUtf8();
     UA_QualifiedName browseName     = UA_QUALIFIEDNAME(1, const_cast<char *>(browseNameUtf8.constData()));
 
-
-
     UA_StatusCode status = UA_Server_addVariableNode(
         m_pServer,
         nodeId,       //  NodeId
-        parentNodeId,   // ✅ 传入的是已创建的真实父节点 ID
+        parentNodeId, // ✅ 传入的是已创建的真实父节点 ID
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         browseName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
@@ -243,9 +248,7 @@ UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConf
         nullptr,
         &nodeId);
 
-
-        printNodeId(nodeId);
-
+    printNodeId(nodeId);
 
     if (status != UA_STATUSCODE_GOOD)
     {
