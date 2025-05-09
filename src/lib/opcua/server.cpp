@@ -85,12 +85,12 @@ bool OpcUaServer::startServer()
         qDebug() << "Failed to create nodes";
         return false;
     }
-    if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
-        return false;
+    //if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
+    //    return false;
 
-    m_pTimer->start(m_config.devices.first().period);
+    //m_pTimer->start(m_config.devices.first().period);
     // 启动服务器主循环，直到 running 为 false
-    // return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD;; // 这里会阻塞，需要重构
+     return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
 }
 
 void OpcUaServer::stopServer()
