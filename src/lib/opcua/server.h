@@ -1,14 +1,16 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include <open62541/server.h>
-#include "config.h"
-
 #include <QObject>
 #include <QDebug>
 #include <QTimer>
 #include <QMap>
 #include <QVector>
+extern "C"
+{
+#include <open62541/server.h>
+}
+#include "config.h"
 #include "opcua_global.h"
 
 /// <summary>
@@ -18,7 +20,7 @@ class OPCUA_EXPORT OpcUaServer : public QObject
 {
     Q_OBJECT
 public:
-    OpcUaServer(OpcUaConfig  config,  QObject * parent = nullptr);
+    OpcUaServer(OpcUaConfig config, QObject * parent = nullptr);
     ~OpcUaServer() override;
 
     bool startServer();
@@ -34,7 +36,9 @@ public:
     bool createNodes();
 
     // 创建单个变量节点
-    UA_NodeId createVariableNode(UA_NodeId & parentNodeIdStr, VariableConfig & varConfig,QString & deviceName);
+    UA_NodeId createVariableNode(UA_NodeId & parentNodeIdStr, VariableConfig & varConfig, QString & deviceName);
+
+    void setupPeriodicNodePublishing(UA_NodeId * nodeList, size_t nodeCount, UA_Double intervalMs);
 
 public slots:
     void onTimerTimeout();

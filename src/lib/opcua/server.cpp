@@ -1,8 +1,15 @@
 
 #include <QDebug>
-#include <open62541/server_config_default.h>
+extern "C"
+{
 #include <signal.h>
 #include <stdlib.h>
+
+#include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types_generated.h>
+}
 
 #include "translate.h"
 #include "server.h"
@@ -85,12 +92,12 @@ bool OpcUaServer::startServer()
         qDebug() << "Failed to create nodes";
         return false;
     }
-    //if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
-    //    return false;
+    // if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
+    //     return false;
 
-    //m_pTimer->start(m_config.devices.first().period);
-    // 启动服务器主循环，直到 running 为 false
-     return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
+    // m_pTimer->start(m_config.devices.first().period);
+    //  启动服务器主循环，直到 running 为 false
+    return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
 }
 
 void OpcUaServer::stopServer()
@@ -199,6 +206,96 @@ void printNodeId(const UA_NodeId & nodeId)
     }
 
     qDebug() << "NodeId:" << result;
+}
+
+void OpcUaServer::setupPeriodicNodePublishing(UA_NodeId * nodeList, size_t nodeCount, UA_Double intervalMs)
+{
+    UA_Server * server = m_pServer;
+    // ---------- 1. 创建 PubSub 连接 ----------
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name                = UA_STRING("UADP Connection");
+    connectionConfig.enabled             = UA_TRUE; // 启用该连接
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+    // 设置网络地址（UDP 多播地址）
+    UA_NetworkAddressUrlDataType address;
+    address.networkInterface = UA_STRING_NULL; // 默认接口
+    address.url              = UA_STRING("opc.udp://224.0.0.22:4840/");
+    UA_Variant_setScalar(&connectionConfig.address, &address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+
+    // 设置发布者ID（静态方式），用于在订阅端识别发布者
+    connectionConfig.publisherIdType    = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
+
+    UA_NodeId connectionIdent;
+    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+
+    // ---------- 2. 创建 PublishedDataSet（PDS） ----------
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(pdsConfig));
+    pdsConfig.name                 = UA_STRING("MyPublishedDataSet");
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+
+    UA_NodeId pdsIdent;
+    UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsIdent);
+
+    // ---------- 3. 为每个节点添加 DataSetField ----------
+    for (size_t i = 0; i < nodeCount; ++i)
+    {
+        UA_DataSetFieldConfig fieldConfig;
+        memset(&fieldConfig, 0, sizeof(fieldConfig));
+        fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+
+        char nameAlias[64];
+        snprintf(nameAlias, sizeof(nameAlias), "Node_%lu", (unsigned long)i);
+        fieldConfig.field.variable.fieldNameAlias = UA_STRING_ALLOC(nameAlias);
+        fieldConfig.field.variable.promotedField  = UA_FALSE;
+
+        // 设置被发布的变量及其属性（值属性）
+        fieldConfig.field.variable.publishParameters.publishedVariable = nodeList[i];
+        fieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
+
+        UA_NodeId dataSetFieldIdent;
+        UA_Server_addDataSetField(server, pdsIdent, &fieldConfig, &dataSetFieldIdent);
+    }
+
+    // ---------- 4. 创建 WriterGroup ----------
+    UA_WriterGroupConfig wgConfig;
+    memset(&wgConfig, 0, sizeof(wgConfig));
+    wgConfig.name               = UA_STRING("MyWriterGroup");
+    wgConfig.publishingInterval = intervalMs; // 发布周期
+    wgConfig.enabled            = UA_TRUE;
+    wgConfig.writerGroupId      = 100;
+    wgConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
+
+    // 设置 WriterGroup 的消息内容配置（UADP 编码）
+    UA_UadpWriterGroupMessageDataType * msgData = UA_UadpWriterGroupMessageDataType_new();
+    msgData->networkMessageContentMask          = UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                         UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                         UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                         UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+
+    wgConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    wgConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    wgConfig.messageSettings.content.decoded.data = msgData;
+
+    UA_NodeId writerGroupIdent;
+    UA_Server_addWriterGroup(server, connectionIdent, &wgConfig, &writerGroupIdent);
+
+    // 设置为运行态
+    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_UadpWriterGroupMessageDataType_delete(msgData);
+
+    // ---------- 5. 创建 DataSetWriter（连接 WG 与 PDS） ----------
+    UA_DataSetWriterConfig dswConfig;
+    memset(&dswConfig, 0, sizeof(dswConfig));
+    dswConfig.name            = UA_STRING("MyDataSetWriter");
+    dswConfig.dataSetWriterId = 42;
+    dswConfig.keyFrameCount   = 10;
+
+    UA_NodeId dswIdent;
+    UA_Server_addDataSetWriter(server, writerGroupIdent, pdsIdent, &dswConfig, &dswIdent);
 }
 
 UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConfig & varConfig, QString & deviceName)
