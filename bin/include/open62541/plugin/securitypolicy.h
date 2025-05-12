@@ -12,7 +12,7 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/pki.h>
 
 _UA_BEGIN_DECLS
 
@@ -22,8 +22,8 @@ struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 /**
- * SecurityPolicy Plugin API
- * ========================= */
+ * SecurityPolicy 
+ * -------------- */
 
 typedef struct {
     UA_String uri;
@@ -298,15 +298,9 @@ struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     UA_String policyUri;
 
-    /* Value indicating the crypto strength of the policy, with zero for deprecated or none */
-    UA_Byte securityLevel;
-
     /* The local certificate is specific for each SecurityPolicy since it
      * depends on the used key length. */
     UA_ByteString localCertificate;
-
-    UA_NodeId certificateGroupId;
-    UA_NodeId certificateTypeId;
 
     /* Function pointers grouped into modules */
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
@@ -322,29 +316,6 @@ struct UA_SecurityPolicy {
                                                     const UA_ByteString newCertificate,
                                                     const UA_ByteString newPrivateKey);
 
-    /* Creates a PKCS #10 DER encoded certificate request signed with the server's
-     * private key.
-     *
-     * @param securityPolicy The securityPolicy to work on.
-     * @param subjectName The subject name to use in the Certificate Request.
-     *                    If not specified the SubjectName from the current Certificate is used.
-     * @param nonce Additional entropy that the caller can provide.
-     *              It shall be at least 32 bytes long.
-     * @param params A KeyVaue list that can be used for additional parameters later.
-     * @param csr Returns the created CSR. If the passed byte string is not empty, nothing is created.
-     * @param newPrivateKey Returns the private key if a new one needs to be generated.
-     *                      Alternatively, an existing key can be provided,
-     *                      which will be used as the CSR key in the security policy.
-     *                      This is necessary if the CSR was created under a different security policy
-     *                      and the current one only requires an update.
-     * @return If the CSR creation was successful, UA_STATUSCODE_GOOD is returned. */
-    UA_StatusCode (*createSigningRequest)(UA_SecurityPolicy *securityPolicy,
-                                          const UA_String *subjectName,
-                                          const UA_ByteString *nonce,
-                                          const UA_KeyValueMap *params,
-                                          UA_ByteString *csr,
-                                          UA_ByteString *newPrivateKey);
-
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
@@ -357,6 +328,7 @@ struct UA_SecurityPolicy {
  * SecurityHeader. The nonce is required for the de- and encryption and has to
  * be set in the channel context before de/encrypting. */
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
@@ -401,6 +373,8 @@ struct UA_PubSubSecurityPolicy {
     void (*clear)(UA_PubSubSecurityPolicy *policy);
     void *policyContext;
 };
+
+#endif
 
 _UA_END_DECLS
 

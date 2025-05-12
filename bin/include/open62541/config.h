@@ -11,9 +11,9 @@
 #define UA_OPEN62541_VER_MAJOR 1
 #define UA_OPEN62541_VER_MINOR 4
 #define UA_OPEN62541_VER_PATCH 10
-#define UA_OPEN62541_VER_LABEL "-1187-g7e8ec6206" /* Release candidate label, etc. */
-#define UA_OPEN62541_VER_COMMIT "v1.4.10-1187-g7e8ec6206"
-#define UA_OPEN62541_VERSION "v1.4.10-1187-g7e8ec6206"
+#define UA_OPEN62541_VER_LABEL "-undefined" /* Release candidate label, etc. */
+#define UA_OPEN62541_VER_COMMIT "unknown-commit"
+#define UA_OPEN62541_VERSION "v1.4.10-undefined"
 
 /**
  * Architecture
@@ -22,11 +22,9 @@
 
 #define UA_ARCHITECTURE_WIN32
 /* #undef UA_ARCHITECTURE_POSIX */
-/* #undef UA_ARCHITECTURE_ZEPHYR */
 
 /* Select default architecture if none is selected */
-#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX) &&      \
-    !defined(UA_ARCHITECTURE_ZEPHYR)
+#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX)
 # ifdef _WIN32
 #  define UA_ARCHITECTURE_WIN32
 # else
@@ -39,14 +37,15 @@
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
 
-#ifndef UA_LOGLEVEL /* allows overriding UA_LOGLEVEL from an external Makefile */
 #define UA_LOGLEVEL 100
-#endif
+#ifndef UA_ENABLE_AMALGAMATION
 /* #undef UA_ENABLE_AMALGAMATION */
+#endif
 #define UA_ENABLE_METHODCALLS
 #define UA_ENABLE_NODEMANAGEMENT
 #define UA_ENABLE_SUBSCRIPTIONS
 #define UA_ENABLE_PUBSUB
+/* #undef UA_ENABLE_PUBSUB_ENCRYPTION */
 /* #undef UA_ENABLE_PUBSUB_FILE_CONFIG */
 #define UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #define UA_ENABLE_DA
@@ -55,13 +54,12 @@
 #define UA_ENABLE_PARSING
 #define UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #define UA_ENABLE_JSON_ENCODING
-/* #undef UA_ENABLE_JSON_ENCODING_LEGACY */
-#define UA_ENABLE_XML_ENCODING
+/* #undef UA_ENABLE_XML_ENCODING */
 /* #undef UA_ENABLE_MQTT */
 /* #undef UA_ENABLE_NODESET_INJECTOR */
 /* #undef UA_INFORMATION_MODEL_AUTOLOAD */
 /* #undef UA_ENABLE_ENCRYPTION_MBEDTLS */
-/* #undef UA_ENABLE_GDS_PUSHMANAGEMENT */
+/* #undef UA_ENABLE_CERT_REJECTED_DIR */
 /* #undef UA_ENABLE_TPM2_SECURITY */
 /* #undef UA_ENABLE_ENCRYPTION_OPENSSL */
 /* #undef UA_ENABLE_ENCRYPTION_LIBRESSL */
@@ -71,6 +69,7 @@
 /* #undef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 /* Multithreading */
+/* #undef UA_ENABLE_IMMUTABLE_NODES */
 #define UA_MULTITHREADING 100
 
 /* Advanced Options */
@@ -80,22 +79,23 @@
 #define UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
 /* #undef UA_ENABLE_DETERMINISTIC_RNG */
 #define UA_ENABLE_DISCOVERY
-/* #undef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD */
-/* #undef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI */
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) || defined(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-#define UA_ENABLE_DISCOVERY_MULTICAST
-#endif
+/* #undef UA_ENABLE_DISCOVERY_MULTICAST */
 /* #undef UA_ENABLE_QUERY */
 /* #undef UA_ENABLE_MALLOC_SINGLETON */
 #define UA_ENABLE_DISCOVERY_SEMAPHORE
 #define UA_GENERATED_NAMESPACE_ZERO
 /* #undef UA_GENERATED_NAMESPACE_ZERO_FULL */
+/* #undef UA_ENABLE_PUBSUB_MONITORING */
+/* #undef UA_ENABLE_PUBSUB_BUFMALLOC */
 /* #undef UA_ENABLE_PUBSUB_SKS */
 
 /* Options for Debugging */
 #define UA_DEBUG
 /* #undef UA_DEBUG_DUMP_PKGS */
 /* #undef UA_DEBUG_FILE_LINE_INFO */
+
+/* Options for Tests */
+/* #undef UA_ENABLE_ALLOW_REUSEADDR */
 
 /**
  * Function Export
@@ -119,15 +119,6 @@
 # else
 #  define _UA_END_DECLS
 # endif
-#endif
-
-/**
- * QNX Flags
- * -------------------
- * Defining _QNX_SOURCE will ensure proper qnx types and other features 
- * are available. */
-#if defined(__QNX__)
-# define _QNX_SOURCE 1
 #endif
 
 /**
@@ -167,7 +158,6 @@
  * C99 Definitions
  * --------------- */
 #include <stddef.h>
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -222,42 +212,27 @@
 
 /* Intrinsic atomic operations are not available everywhere for MSVC.
  * Use the win32 API. Prevent duplicate definitions by via winsock2. */
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32)
-#  ifndef _WINSOCKAPI_
-#   define _NO_WINSOCKAPI_
-#  endif
-#  define _WINSOCKAPI_
-#  include <windows.h>
-#  ifdef _NO_WINSOCKAPI_
-#   undef _WINSOCKAPI_
-#  endif
-# elif defined(__has_include) && __has_include(<stdatomic.h>)
-#  define UA_HAVE_C11_ATOMICS
-#  ifdef __cplusplus
-#    include <atomic>
-#    define _Atomic(T) std::atomic<T>
-#    define atomic_uintptr_t std::atomic_uintptr_t
-#  else
-#    include <stdatomic.h>
-#  endif
-# elif !defined(HAVE_GCC_SYNC_BUILTINS)
-#  error Atomic operations not implemented
+#if UA_MULTITHREADING >= 100 && defined(_WIN32)
+# ifndef _WINSOCKAPI_
+#  define _NO_WINSOCKAPI_
+# endif
+# define _WINSOCKAPI_
+# include <windows.h>
+# ifdef _NO_WINSOCKAPI_
+#  undef _WINSOCKAPI_
 # endif
 #endif
 
 static UA_INLINE void *
-UA_atomic_xchg(void **addr, void *newptr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    return InterlockedExchangePointer((void * volatile *)(uintptr_t)addr, newptr);
-# elif defined(UA_HAVE_C11_ATOMICS)
-    return (void *)atomic_exchange((volatile atomic_uintptr_t *)addr,
-                                   (uintptr_t)newptr);
-# else /* HAVE_GCC_SYNC_BUILTINS */
+UA_atomic_xchg(void * volatile * addr, void *newptr) {
+#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
+    return InterlockedExchangePointer(addr, newptr);
+#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
     return __sync_lock_test_and_set(addr, newptr);
-# endif
 #else
+# if UA_MULTITHREADING >= 100
+#  warning Atomic operations not implemented
+# endif
     void *old = *addr;
     *addr = newptr;
     return old;
@@ -265,41 +240,16 @@ UA_atomic_xchg(void **addr, void *newptr) {
 }
 
 static UA_INLINE void *
-UA_atomic_cmpxchg(void **addr, void *expected, void *newptr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    return InterlockedCompareExchangePointer((void *volatile *)(uintptr_t)addr,
-                                             newptr, expected);
-# elif defined(UA_HAVE_C11_ATOMICS)
-    atomic_compare_exchange_strong((volatile atomic_uintptr_t *)addr,
-                                   (uintptr_t *)&expected, (uintptr_t)newptr);
-    return expected;
-# else /* HAVE_GCC_SYNC_BUILTINS */
+UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
+#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
+    return InterlockedCompareExchangePointer(addr, newptr, expected);
+#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
     return __sync_val_compare_and_swap(addr, expected, newptr);
-# endif
 #else
     void *old = *addr;
     if(old == expected)
         *addr = newptr;
     return old;
-#endif
-}
-
-static UA_INLINE void *
-UA_atomic_load(void **addr) {
-#if UA_MULTITHREADING >= 100
-# if defined(_WIN32) /* Visual Studio */
-    /* Assume x86 for Win32 builds. There we only need to lock stores. Reads are
-     * always atomic: "Locked operations are atomic with respect to all other
-     * memory operations and all externally visible events." */
-    return *addr;
-# elif defined(UA_HAVE_C11_ATOMICS)
-    return (void*)atomic_load((volatile atomic_uintptr_t *)addr);
-# else /* HAVE_GCC_SYNC_BUILTINS */
-    return __sync_fetch_and_or(addr, (void*)0);
-# endif
-#else
-    return *addr;
 #endif
 }
 
@@ -404,43 +354,42 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_LOCK_DESTROY(lock)
 # define UA_LOCK(lock)
 # define UA_UNLOCK(lock)
-# define UA_LOCK_ASSERT(lock)
+# define UA_LOCK_ASSERT(lock, num)
 
 #elif defined(UA_ARCHITECTURE_WIN32)
 
 typedef struct {
     /* Critical sections on win32 are always recursive */
     CRITICAL_SECTION mutex;
-    unsigned count; /* For assertions that we hold the mutex */
+    int mutexCounter;
 } UA_Lock;
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     InitializeCriticalSection(&lock->mutex);
-    lock->count = 0;
+    lock->mutexCounter = 0;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
-    UA_assert(lock->count == 0);
     DeleteCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     EnterCriticalSection(&lock->mutex);
-    lock->count++;
+    ++lock->mutexCounter;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    lock->count--;
+    --lock->mutexCounter;
     LeaveCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock) {
-    UA_assert(lock->count > 0);
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(num <= 0 || lock->mutexCounter > 0);
 }
 
 #elif defined(UA_ARCHITECTURE_POSIX)
@@ -449,7 +398,7 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
 
 typedef struct {
     pthread_mutex_t mutex;
-    unsigned count; /* For assertions that we hold the mutex */
+    int mutexCounter;
 } UA_Lock;
 
 static UA_INLINE void
@@ -458,31 +407,29 @@ UA_LOCK_INIT(UA_Lock *lock) {
     pthread_mutexattr_init(&mattr);
     pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&lock->mutex, &mattr);
-    pthread_mutexattr_destroy(&mattr);
-    lock->count = 0;
+    lock->mutexCounter = 0;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
-    UA_assert(lock->count == 0);
     pthread_mutex_destroy(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    lock->count++;
+    lock->mutexCounter++;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    lock->count--;
+    lock->mutexCounter--;
     pthread_mutex_unlock(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock) {
-    UA_assert(lock->count > 0);
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(num <= 0 || lock->mutexCounter > 0);
 }
 
 #endif
@@ -544,8 +491,8 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
 # define UA_LIKELY(x) __builtin_expect((x), 1)
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
-# define UA_LIKELY(x) (x)
-# define UA_UNLIKELY(x) (x)
+# define UA_LIKELY(x) x
+# define UA_UNLIKELY(x) x
 #endif
 
 /**

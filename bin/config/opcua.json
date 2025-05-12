@@ -14,7 +14,7 @@
                             "display_name": "xitongzhuangtai",
                             "data_type": "int32",
                             "default_value": 0,
-                            "access_level": "ro",
+                            "access_level": "rw",
                             "description": "0:离线, 1:正常, 2:警告"
                         },
                         {

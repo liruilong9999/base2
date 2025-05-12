@@ -1,5 +1,5 @@
-﻿#include "client.h"
-#include <QDebug>
+﻿#include <QDebug>
+#include <QTimer> 
 
 extern "C"
 {
@@ -7,12 +7,26 @@ extern "C"
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 }
+#include "client.h"
 
 OpcUaClient::OpcUaClient(QObject * parent)
     : QObject(parent)
 {
     m_client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
+
+    m_client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
+
+    // 👉 添加定时器，每 100ms 调用一次 UA_Client_run_iterate() 处理订阅消息
+    QTimer * timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, [this]() {
+        if (m_client)
+        {
+            UA_Client_run_iterate(m_client, false); // 👈 必须调用！
+        }
+    });
+    timer->start(100); // 调用频率应不低于服务端的发布频率
 }
 
 OpcUaClient::~OpcUaClient()
@@ -43,12 +57,6 @@ void OpcUaClient::disconnectFromServer()
     }
 }
 
-#include <open62541/client_config_default.h>
-#include <open62541/client_highlevel.h>
-#include <open62541/plugin/log_stdout.h>
-#include <QString>
-#include <QDebug>
-
 // 回调函数：当订阅节点的值发生变化时会调用此函数
 static void handler_DataChanged(UA_Client * client, UA_UInt32 subId, void * subContext, UA_UInt32 monId, void * monContext, UA_DataValue * value)
 {
@@ -56,6 +64,16 @@ static void handler_DataChanged(UA_Client * client, UA_UInt32 subId, void * subC
     if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_DOUBLE]))
     {
         double v = *(UA_Double *)variant->data;
+        qDebug() << "值变更：" << v;
+    }
+    else if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_UINT32]))
+    {
+        uint32_t v = *(UA_UInt32 *)variant->data;
+        qDebug() << "值变更：" << v;
+    }
+    else if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_INT32]))
+    {
+        int32_t v = *(UA_Int32 *)variant->data;
         qDebug() << "值变更：" << v;
     }
     else
@@ -81,8 +99,6 @@ void OpcUaClient::subscribeNodeValue(const QString & nodeIdStr)
     {
         qWarning("创建订阅失败");
         UA_NodeId_clear(&nodeId);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
         return;
     }
 
@@ -143,7 +159,7 @@ QVariant OpcUaClient::readValue(const QString & fullNodeId)
     }
 
     // 5. 清理资源
-    //UA_ReadRequest_clear(&req);
+    // UA_ReadRequest_clear(&req);
     UA_ReadResponse_clear(&resp);
 
     return result;

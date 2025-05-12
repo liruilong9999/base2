@@ -1,15 +1,11 @@
-/* This Source Code Form i subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
- */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_SUBSCRIPTIONS_H_
 #define UA_CLIENT_SUBSCRIPTIONS_H_
 
 #include <open62541/client.h>
-#include <open62541/client_highlevel_async.h>
 
 _UA_BEGIN_DECLS
 
@@ -66,80 +62,59 @@ UA_CreateSubscriptionRequest_default(void) {
     return request;
 }
 
-UA_CreateSubscriptionResponse UA_EXPORT UA_THREADSAFE
+UA_CreateSubscriptionResponse UA_EXPORT
 UA_Client_Subscriptions_create(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback);
 
-typedef void
-(*UA_ClientAsyncCreateSubscriptionCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_CreateSubscriptionResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_create_async(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
-    UA_ClientAsyncCreateSubscriptionCallback callback,
+    UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_ModifySubscriptionResponse UA_EXPORT UA_THREADSAFE
+UA_ModifySubscriptionResponse UA_EXPORT
 UA_Client_Subscriptions_modify(UA_Client *client,
     const UA_ModifySubscriptionRequest request);
 
-typedef void
-(*UA_ClientAsyncModifySubscriptionCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_ModifySubscriptionResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_modify_async(UA_Client *client,
     const UA_ModifySubscriptionRequest request,
-    UA_ClientAsyncModifySubscriptionCallback callback,
+    UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_DeleteSubscriptionsResponse UA_EXPORT UA_THREADSAFE
+UA_DeleteSubscriptionsResponse UA_EXPORT
 UA_Client_Subscriptions_delete(UA_Client *client,
     const UA_DeleteSubscriptionsRequest request);
 
-typedef void
-(*UA_ClientAsyncDeleteSubscriptionsCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteSubscriptionsResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_delete_async(UA_Client *client,
     const UA_DeleteSubscriptionsRequest request,
-    UA_ClientAsyncDeleteSubscriptionsCallback callback,
+    UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
 /* Delete a single subscription */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_deleteSingle(UA_Client *client,
-                                     UA_UInt32 subscriptionId);
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId);
 
-/* Retrieve or change the user supplied subscription contexts */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_getContext(UA_Client *client,
-                                   UA_UInt32 subscriptionId,
-                                   void **subContext);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_setContext(UA_Client *client,
-                                   UA_UInt32 subscriptionId,
-                                   void *subContext);
-
-UA_SetPublishingModeResponse UA_EXPORT UA_THREADSAFE
+static UA_INLINE UA_SetPublishingModeResponse
 UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
-    const UA_SetPublishingModeRequest request);
+    const UA_SetPublishingModeRequest request) {
+    UA_SetPublishingModeResponse response;
+    __UA_Client_Service(client,
+        &request, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST],
+        &response, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE]);
+    return response;
+}
 
 /**
  * MonitoredItems
- * ~~~~~~~~~~~~~~
+ * --------------
  *
  * MonitoredItems for Events indicate the ``EventNotifier`` attribute. This
  * indicates to the server not to monitor changes of the attribute, but to
@@ -164,8 +139,8 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
 }
 
 /**
- * The clientHandle parameter cannot be set by the user, any value will be
- * replaced by the client before sending the request to the server. */
+ * The clientHandle parameter cannot be set by the user, any value will be replaced
+ * by the client before sending the request to the server. */
 
 /* Callback for the deletion of a MonitoredItem */
 typedef void (*UA_Client_DeleteMonitoredItemCallback)
@@ -185,26 +160,21 @@ typedef void (*UA_Client_EventNotificationCallback)
      size_t nEventFields, UA_Variant *eventFields);
 
 /* Don't use to monitor the EventNotifier attribute */
-UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
     const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_DataChangeNotificationCallback *callbacks,
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks);
 
-typedef void
-(*UA_ClientAsyncCreateMonitoredItemsCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_CreateMonitoredItemsResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
     const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_DataChangeNotificationCallback *callbacks,
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
-    UA_ClientAsyncCreateMonitoredItemsCallback createCallback,
+    UA_ClientAsyncServiceCallback createCallback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_MonitoredItemCreateResult UA_EXPORT
 UA_Client_MonitoredItems_createDataChange(UA_Client *client,
     UA_UInt32 subscriptionId,
     UA_TimestampsToReturn timestampsToReturn,
@@ -213,22 +183,22 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client,
     UA_Client_DeleteMonitoredItemCallback deleteCallback);
 
 /* Monitor the EventNotifier attribute only */
-UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createEvents(UA_Client *client,
     const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_EventNotificationCallback *callback,
     UA_Client_DeleteMonitoredItemCallback *deleteCallback);
 
 /* Monitor the EventNotifier attribute only */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
     const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_EventNotificationCallback *callbacks,
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
-    UA_ClientAsyncCreateMonitoredItemsCallback createCallback,
+    UA_ClientAsyncServiceCallback createCallback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_MonitoredItemCreateResult UA_EXPORT
 UA_Client_MonitoredItems_createEvent(UA_Client *client,
     UA_UInt32 subscriptionId,
     UA_TimestampsToReturn timestampsToReturn,
@@ -236,84 +206,76 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client,
     void *context, UA_Client_EventNotificationCallback callback,
     UA_Client_DeleteMonitoredItemCallback deleteCallback);
 
-UA_DeleteMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_DeleteMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_delete(UA_Client *client,
     const UA_DeleteMonitoredItemsRequest);
 
-typedef void
-(*UA_ClientAsyncDeleteMonitoredItemsCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteMonitoredItemsResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_MonitoredItems_delete_async(UA_Client *client,
     const UA_DeleteMonitoredItemsRequest request,
-    UA_ClientAsyncDeleteMonitoredItemsCallback callback,
+    UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_MonitoredItems_deleteSingle(UA_Client *client,
     UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId);
 
-/**
- * The "ClientHandle" is part of the MonitoredItem configuration. The handle is
- * set internally and not exposed to the user. */
-
-UA_ModifyMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+/* The clientHandle parameter will be filled automatically */
+UA_ModifyMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
 
-typedef void
-(*UA_ClientAsyncModifyMonitoredItemsCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteMonitoredItemsResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT
 UA_Client_MonitoredItems_modify_async(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request,
-    UA_ClientAsyncModifyMonitoredItemsCallback callback,
+    UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_SetMonitoringModeResponse UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_setMonitoringMode(
-    UA_Client *client, const UA_SetMonitoringModeRequest request);
+/**
+ * The following service calls go directly to the server. The MonitoredItem
+ * settings are not stored in the client. */
 
-typedef void
-(*UA_ClientAsyncSetMonitoringModeCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_SetMonitoringModeResponse *response);
+static UA_INLINE UA_SetMonitoringModeResponse
+UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
+    const UA_SetMonitoringModeRequest request) {
+    UA_SetMonitoringModeResponse response;
+    __UA_Client_Service(client,
+        &request, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
+        &response, &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE]);
+    return response;
+}
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_setMonitoringMode_async(
-    UA_Client *client, const UA_SetMonitoringModeRequest request,
-    UA_ClientAsyncSetMonitoringModeCallback callback,
-    void *userdata, UA_UInt32 *requestId);
+static UA_INLINE UA_StatusCode
+UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
+    const UA_SetMonitoringModeRequest request,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, &request,
+        &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST], callback,
+        &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE],
+        userdata, requestId);
+}
 
-UA_SetTriggeringResponse UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_setTriggering(
-    UA_Client *client, const UA_SetTriggeringRequest request);
+static UA_INLINE UA_SetTriggeringResponse
+UA_Client_MonitoredItems_setTriggering(UA_Client *client,
+    const UA_SetTriggeringRequest request) {
+    UA_SetTriggeringResponse response;
+    __UA_Client_Service(client,
+        &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
+        &response, &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE]);
+    return response;
+}
 
-typedef void
-(*UA_ClientAsyncSetTriggeringCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_SetTriggeringResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_setTriggering_async(
-    UA_Client *client, const UA_SetTriggeringRequest request,
-    UA_ClientAsyncSetTriggeringCallback callback,
-    void *userdata, UA_UInt32 *requestId);
-
-/* Retrieve or change the user supplied MonitoredItem context */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_getContext(UA_Client *client,
-    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
-    void **monContext);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_setContext(UA_Client *client,
-    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
-    void *monContext);
+static UA_INLINE UA_StatusCode
+UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
+    const UA_SetTriggeringRequest request,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, &request,
+        &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST], callback,
+        &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE],
+        userdata, requestId);
+}
 
 _UA_END_DECLS
 

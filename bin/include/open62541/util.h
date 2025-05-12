@@ -9,18 +9,10 @@
 #define UA_HELPER_H_
 
 #include <open62541/types.h>
-#include <open62541/plugin/log.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
 
 _UA_BEGIN_DECLS
-
-/**
- * .. _utility:
- *
- * Utility Definitions
- * ===================
- *
- * Utility functions are used by both client and server. Different from the
- * :ref:`common`, the utlity functions can use the :ref:`types`. */
 
 /**
  * Range Definition
@@ -37,39 +29,14 @@ typedef struct {
 } UA_DurationRange;
 
 /**
- * .. _eventfilter:
- *
- * Event-Filter Parsing
- * --------------------
- */
-#ifdef UA_ENABLE_PARSING
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-typedef struct {
-    const UA_Logger *logger;
-} UA_EventFilterParserOptions;
-
-UA_EXPORT UA_StatusCode
-UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
-                     UA_EventFilterParserOptions *options);
-
-#endif
-#endif
-
-/**
  * Random Number Generator
  * -----------------------
  * If UA_MULTITHREADING is defined, then the seed is stored in thread
  * local storage. The seed is initialized for every thread in the
  * server/client. */
 
-/* Initialize the RNG with the seed number and UA_DateTime_now() */
 void UA_EXPORT
 UA_random_seed(UA_UInt64 seed);
-
-/* Initialize the RNG with the seed number (only) */
-void UA_EXPORT
-UA_random_seed_deterministic(UA_UInt64 seed);
 
 UA_UInt32 UA_EXPORT
 UA_UInt32_random(void); /* no cryptographic entropy */
@@ -252,92 +219,34 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #endif
 
 /**
- * Escaping of Strings
- * -------------------
+ * Parse RelativePath Expressions
+ * ------------------------------
  *
- * And-Escaping
- * ~~~~~~~~~~~~
- *
- * The "and-escaping" of strings is described in Part 4, A2. The ``&`` character
- * is used to escape the reserved characters ``/.<>:#!&``. So the string
- * ``My.String`` becomes ``My&.String``.
- *
- * In addition to the standard we define "extended-and-escaping" where
- * additionaly commas, semicolons, brackets and whitespace characters are
- * escaped. This improves the parsing in a larger context, as a lexer can find
- * the end of the escaped string. The additionally reserved characters for the
- * extended escaping are ``,()[] \t\n\v\f\r``.
- *
- * This documentation always states whether "and-escaping" or the
- * "extended-and-escaping is used.
- *
- * .. _percent-escaping:
- *
- * Percent-Escaping
- * ~~~~~~~~~~~~~~~~
- *
- * Percent-escaped characters get encoded as ``%xx`` where xx is the hex-string
- * for an 8-bit octet. Its use is stated in Part 6 of the OPC UA specification
- * for human-readable QualifiedNames, NodeIds and ExpandedNodeIds. The
- * specification (only) requires that the ``;`` characters gets escaped, and
- * that decoders allow percent-escaping of any character.
- *
- * Percent-escaping was originally defined for URIs. RFC 3986 defines a set of
- * reserved characters (delimiters) that require escaping when they are used
- * within URI components. But the reserved characters can be used directly in an
- * URI to "delimit" between its components.
- *
- * For the **percent-escaping** (e.g. used for the NamespaceUri part of the
- * NodeId in ``UA_NodeId_printEx``), the reserved characters are the semicolon,
- * the percent character, whitespaces and unprintable ASCII control codes.
- * Besides those, any UTF8 encoding is allowed.
- *
- * In some contexts the semicolon alone is not sufficient as the delimiter. For
- * our non-standard **extended-percent-escaping** the reserved characters are
- * the following (in addition to whitespaces and unprintable ASCII control
- * codes).::
- *
- *    ' ' - %20     '(' - %28     '>' - %3E
- *    '"' - %22     ')' - %29     '[' - %5B
- *    '#' - %23     ',' - %2C     '\' - %5C
- *    '%' - %25     '/' - %2F     ']' - %5D
- *    '&' - %26     ';' - %3B     '`' - %60
- *    ''' - %27     '<' - %3C
- *
- * .. _relativepath:
- *
- * RelativePath Expressions
- * ------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
- * used e.g. for the BrowsePath structure.
+ * used e.g. for the BrowsePath structure. For now, only the standard
+ * ReferenceTypes from Namespace 0 are recognized (see Part 3).
  *
- *   ``RelativePath := ( ReferenceType BrowseName )+``
+ *   ``RelativePath := ( ReferenceType [BrowseName]? )*``
  *
- * The ReferenceType has one of the following formats:
+ * The ReferenceTypes have either of the following formats:
  *
  * - ``/``: *HierarchicalReferences* and subtypes
- * - ``.``: *Aggregates* ReferenceTypes and subtypes
- * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
- *   Reserved characters in the BrowseName are and-escaped. The following
- *   prefix-modifiers are defined for the ReferenceType.
+ * - ``.``: *Aggregates* ReferenceTypesand subtypes
+ * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName
+ *   (a QualifiedName). Prefixed modifiers can be as follows: ``!`` switches to
+ *   inverse References. ``#`` excludes subtypes of the ReferenceType.
  *
- *   - ``!`` switches to inverse References
- *   - ``#`` excludes subtypes of the ReferenceType.
- *   - As a non-standard extension we allow the ReferenceType in angle-brackets
- *     as a NodeId. For example ``<ns=1;i=345>``. If a string NodeId is used,
- *     the string identifier is and-escaped.
+ * QualifiedNames consist of an optional NamespaceIndex and the nameitself:
  *
- * The BrowseName is a QualifiedName. It consist of an optional NamespaceIndex
- * and the name itself. The NamespaceIndex can be left out for the default
- * Namespace zero. The name component is and-escaped (see above).
+ *   ``QualifiedName := ([0-9]+ ":")? Name``
  *
- *   ``BrowseName := ([0-9]+ ":")? Name``
- *
- * The last BrowseName in a RelativePath can be omitted. This acts as a wildcard
- * that matches any BrowseName.
+ * The QualifiedName representation for RelativePaths uses ``&`` as the escape
+ * character. Occurences of the characters ``/.<>:#!&`` in a QualifiedName have
+ * to be escaped (prefixed with ``&``).
  *
  * Example RelativePaths
- * ~~~~~~~~~~~~~~~~~~~~~
+ * `````````````````````
+ *
  * - ``/2:Block&.Output``
  * - ``/3:Truck.0:NodeVersion``
  * - ``<0:HasProperty>1:Boiler/1:HeatSensor``
@@ -346,111 +255,16 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
  */
-
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
-
-/* Supports the lookup of non-standard ReferenceTypes by their browse name in
- * the information model of a server. The first matching result in the
- * ReferenceType hierarchy is used. */
-UA_EXPORT UA_StatusCode
-UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
-                                const UA_String str);
-
-/* The out-string can be pre-allocated. Then the size is adjusted or an error
- * returned. If the out-string is NULL, then memory is allocated for it. */
-UA_EXPORT UA_StatusCode
-UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
-#endif
-
-/**
- * .. _parse-sao:
- *
- * Attribute Path Expression
- * -------------------------
- * The data types ``ReadValueId``, ``AttributeOperand`` and
- * ``SimpleAttributeOperand`` define the location of a value. That is, they
- * define an attribute (with an optional index-range) of a node in the
- * information model. The ``AttributeOperand`` data type has the most features.
- * The other two are similar but simplified:
- *
- *   ReadValueId :=
- *     NodeId? ("#" Attribute)? ("[" IndexRange "]")?
- *
- *   AttributeOperand :=
- *     NodeId? RelativePath? ("#" Attribute)? ("[" IndexRange "]")?
- *
- *   SimpleAttributeOperand :=
- *     TypeDefId? ("/" BrowseName)* ("#" Attribute)? ("[" IndexRange "]")?
- *
- * The ReadValueId is used for the Read Service. The default NodeId is ``i=0``.
- * The default attribute is ``#Value``.
- *
- * The AttributeOperand is used for the Query Service. It extends the
- * ReadValueId with a RelativePath to be followed from the initial node. The
- * default NodeId is the ObjectsFolder ``i=85``. The default attribute is
- * ``#Value``.
- *
- * The SimpleAttributeOperand is used for the Query Service and for
- * :ref:`eventfilter`. It is a simplified AttributeOperand where all references
- * in the RelativePath are (subtypes of) HierarchicalReferences. So the ``/``
- * separator is mandatory. The initial NodeId is called *TypeDefinitionId*
- * because SimpleAttributeOperands are typically used in EventFilters to
- * reference the child nodes of an EventType to select the values reported for
- * each event instance.
- *
- * The different parts of the expression are parsed as follows:
- *
- * - The :ref:`nodeid` uses the human-readable format of Part 6, 5.3.1.10.
- *   String NodeIds use the extended-and-escaping from above.
- * - The :ref:`relativepath` use the human-readable format with
- *   extended-and-escaping for strings.
- * - The :ref:`attribute-id` is the human-readable name of the selected node
- *   attribute.
- * - For the index range, see the section on :ref:`numericrange`.
- *
- * Example SimpleAttributeOperands
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * - ``ns=2;s=TruckEventType/3:Truck/5:Wheel#Value[1:3]``
- * - ``/3:Truck/5:Wheel``
- * - ``#BrowseName`` */
-
-#ifdef UA_ENABLE_PARSING
-UA_EXPORT UA_StatusCode
-UA_ReadValueId_parse(UA_ReadValueId *rvi,
-                     const UA_String str);
-
-UA_EXPORT UA_StatusCode
-UA_AttributeOperand_parse(UA_AttributeOperand *ao,
-                          const UA_String str);
-
-UA_EXPORT UA_StatusCode
-UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
-                                const UA_String str);
-
-/* The out-string can be pre-allocated. Then the size is adjusted or an error
- * returned. If the out-string is NULL, then memory is allocated for it. */
-UA_EXPORT UA_StatusCode
-UA_ReadValueId_print(const UA_ReadValueId *rvi,
-                     UA_String *out);
-
-UA_EXPORT UA_StatusCode
-UA_AttributeOperand_print(const UA_AttributeOperand *ao,
-                          UA_String *out);
-
-UA_EXPORT UA_StatusCode
-UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
-                                UA_String *out);
 #endif
 
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
-
-#define UA_PRINTF_GUID_FORMAT                                           \
-    "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-%02" PRIx8 "%02" PRIx8   \
-    "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8  "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
+#define UA_PRINTF_GUID_FORMAT "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 \
+    "-%02" PRIx8 "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
@@ -472,34 +286,6 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length);
  * freed. */
 UA_EXPORT void
 UA_ByteString_memZero(UA_ByteString *bs);
-
-/**
- * Trustlist Helpers
- * ----------------- */
-
-/* Adds all of the certificates from the src trusted list to the dst trusted list. */
-UA_EXPORT UA_StatusCode
-UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *dst);
-
-/* Replaces the contents of the destination trusted list with the certificates from the source trusted list. */
-UA_EXPORT UA_StatusCode
-UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst);
-
-/* Removes all of the certificates from the dst trust list that are specified
- * in the src trust list. */
-UA_EXPORT UA_StatusCode
-UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst);
-
-/* Checks if the certificate is present in the trust list.
- * The mask parameter can be used to specify the part of the trust list to check. */
-UA_EXPORT UA_Boolean
-UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
-                              const UA_ByteString *certificate,
-                              UA_TrustListMasks mask);
-
-/* Returns the size of the TrustList in bytes. */
-UA_EXPORT UA_UInt32
-UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList);
 
 _UA_END_DECLS
 
