@@ -42,8 +42,10 @@ public:
                                      double                         intervalMs,
                                      const QString &                writerGroupName,
                                      const QString &                dataSetWriterName);
+    bool hasNode(const UA_NodeId & node);
 
-        public slots : void onTimerTimeout();
+public slots:
+    void onTimerTimeout();
 
 private:
     QTimer *          m_pTimer;        // 定时器
@@ -53,7 +55,6 @@ private:
     // 节点映射表 <BrowseName, NodeId>
     QMap<QString, UA_NodeId> m_nodeMap;
 
-    QVector<UA_NodeId> m_nodeIds; // 节点ID列表
     OpcUaConfig        m_config;
 };
 

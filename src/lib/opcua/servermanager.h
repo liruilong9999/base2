@@ -20,6 +20,11 @@ public:
 
     void startThread();
 
+    void setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList,
+                                     double                         intervalMs,
+                                     const QString &                writerGroupName,
+                                     const QString &                dataSetWriterName);
+
 private:
     QMap<QString, OpcUaServer *> m_servers;
     QVector<OpcUaConfig>         m_config;

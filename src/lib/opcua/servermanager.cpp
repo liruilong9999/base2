@@ -30,3 +30,19 @@ void ServerManager::startThread()
         server->startServer();
     }
 }
+
+void ServerManager::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList, double intervalMs, const QString & writerGroupName, const QString & dataSetWriterName)
+{
+    for (auto node : nodeList)
+    {
+        for (auto server : m_servers)
+        {
+            if (server->hasNode(node))
+            {
+                // todo 这里后面肯需要重新处理
+                server->setupPeriodicNodePublishing(nodeList, intervalMs, writerGroupName, dataSetWriterName);
+                return;
+            }
+        }
+    }
+}

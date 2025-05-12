@@ -73,9 +73,9 @@ void OpcUaClient::subscribeNodeValue(const QString & nodeIdStr)
     // 解析 nodeId 字符串为 UA_NodeId
     UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, nodeIdStr.toUtf8().constData());
 
-    // 创建订阅（发布间隔 1000ms）
+    // 创建订阅（发布间隔 100ms）
     UA_CreateSubscriptionRequest request   = UA_CreateSubscriptionRequest_default();
-    request.requestedPublishingInterval    = 1000.0;
+    request.requestedPublishingInterval    = 100.0;
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
     {
@@ -100,8 +100,6 @@ void OpcUaClient::subscribeNodeValue(const QString & nodeIdStr)
     {
         qWarning("创建监控项失败");
         UA_NodeId_clear(&nodeId);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
         return;
     }
 
@@ -145,9 +143,8 @@ QVariant OpcUaClient::readValue(const QString & fullNodeId)
     }
 
     // 5. 清理资源
-    // UA_ReadRequest_clear(&req);
-    // UA_ReadResponse_clear(&resp);
-    // UA_NodeId_clear(&nodeId);
+    //UA_ReadRequest_clear(&req);
+    UA_ReadResponse_clear(&resp);
 
     return result;
 }

@@ -92,22 +92,17 @@ bool OpcUaServer::startServer()
         qDebug() << "Failed to create nodes";
         return false;
     }
-    // if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
-    //     return false;
+    if (UA_Server_run_startup(m_pServer) != UA_STATUSCODE_GOOD)
+        return false;
 
-    // m_pTimer->start(m_config.devices.first().period);
+    m_pTimer->start(m_config.devices.first().period);
     //  启动服务器主循环，直到 running 为 false
-    return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
+    // return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
 }
 
 void OpcUaServer::stopServer()
 {
     g_running = false;
-}
-
-void OpcUaServer::addNode(UA_NodeId node)
-{
-    m_nodeIds.push_back(node);
 }
 
 void OpcUaServer::updateNodeData(const QString & nodeBrowseName, const QVariant & value)
@@ -209,9 +204,9 @@ void printNodeId(const UA_NodeId & nodeId)
 }
 
 void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList,
-                                      double                         intervalMs,
-                                      const QString &                writerGroupName,
-                                      const QString &                dataSetWriterName)
+                                              double                         intervalMs,
+                                              const QString &                writerGroupName,
+                                              const QString &                dataSetWriterName)
 {
     // 配置 PubSub 连接参数（使用 UDP 组播方式）
     UA_PubSubConnectionConfig connectionConfig;
@@ -223,8 +218,8 @@ void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nod
 
     // 设置 UDP 地址为组播地址（标准 OPC UA 示例地址）
     UA_NetworkAddressUrlDataType address;
-    address.networkInterface = UA_STRING_NULL;                          // 默认网卡
-    address.url              = UA_STRING("opc.udp://224.0.0.22:4840/"); // UDP 多播地址
+    address.networkInterface = UA_STRING_NULL;                         // 默认网卡
+    address.url              = UA_STRING("opc.udp://127.0.0.1:4840/"); // UDP 多播地址
     UA_Variant_setScalar(&connectionConfig.address, &address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
     // 设置发布者ID（标识唯一发布者）
@@ -245,12 +240,13 @@ void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nod
     pdsConfig.name                 = UA_STRING("MyDataSet");           // 数据集名称（内部可重复使用）
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS; // 按变量发布项
 
-    //UA_NodeId pdsId;
-    //if (UA_Server_addPublishedDataSet(m_pServer, &pdsConfig, &pdsId) != UA_STATUSCODE_GOOD)
+    UA_NodeId                    pdsId;
+    UA_AddPublishedDataSetResult dataset = UA_Server_addPublishedDataSet(m_pServer, &pdsConfig, &pdsId);
+    // if (UA_Server_addPublishedDataSet(m_pServer, &pdsConfig, &pdsId) != UA_STATUSCODE_GOOD)
     //{
-    //    qWarning("添加 PublishedDataSet 失败");
-    //    return;
-    //}
+    //     qWarning("添加 PublishedDataSet 失败");
+    //     return;
+    // }
 
     // 遍历节点列表，添加每个变量作为数据字段
     for (const UA_NodeId & nodeId : nodeList)
@@ -262,11 +258,14 @@ void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nod
         fieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE; // 发布 Value 属性
         fieldConfig.field.variable.promotedField                       = UA_TRUE;              // 作为独立数据字段传输
 
-        //UA_NodeId fieldId;
-        //if (UA_Server_addDataSetField(m_pServer, pdsId, &fieldConfig, &fieldId) != UA_STATUSCODE_GOOD)
+        UA_NodeId             fieldId;
+        UA_DataSetFieldResult datasetfield = UA_Server_addDataSetField(m_pServer, pdsId, &fieldConfig, &fieldId);
+        qDebug() << datasetfield.result;
+        // UA_NodeId fieldId;
+        // if (UA_Server_addDataSetField(m_pServer, pdsId, &fieldConfig, &fieldId) != UA_STATUSCODE_GOOD)
         //{
-        //    qWarning("添加 DataSetField 失败");
-        //}
+        //     qWarning("添加 DataSetField 失败");
+        // }
     }
 
     // 配置 WriterGroup（写组，控制发布节奏）
@@ -316,11 +315,14 @@ void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nod
     dswConfig.keyFrameCount   = 10;
     dswConfig.name            = UA_STRING_ALLOC(dataSetWriterName.toUtf8().constData()); // 名称设置来自外部参数
 
-    //UA_NodeId dswId;
-    //if (UA_Server_addDataSetWriter(m_pServer, writerGroupId, pdsId, &dswConfig, &dswId) != UA_STATUSCODE_GOOD)
+    UA_NodeId     dswId;
+    UA_StatusCode dddd = UA_Server_addDataSetWriter(m_pServer, writerGroupId, pdsId, &dswConfig, &dswId);
+
+    // UA_NodeId dswId;
+    // if (UA_Server_addDataSetWriter(m_pServer, writerGroupId, pdsId, &dswConfig, &dswId) != UA_STATUSCODE_GOOD)
     //{
-    //    qWarning("添加 DataSetWriter 失败");
-    //}
+    //     qWarning("添加 DataSetWriter 失败");
+    // }
 
     // 释放 DataSetWriter 名称的动态内存
     UA_String_clear(&dswConfig.name);
@@ -330,6 +332,46 @@ void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nod
            dataSetWriterName.toUtf8().constData());
 }
 
+// 获取 NodeId 的字符串表示
+std::string getNodeIdString(const UA_NodeId & nodeId)
+{
+    // 检查标识符类型是否为字符串类型
+    if (nodeId.identifierType == UA_NODEIDTYPE_STRING)
+    {
+        // 如果是字符串类型，直接返回标识符
+        UA_String nodeIdStr = nodeId.identifier.string;
+        return std::string(reinterpret_cast<const char *>(nodeIdStr.data), nodeIdStr.length);
+    }
+    else if (nodeId.identifierType == UA_NODEIDTYPE_NUMERIC)
+    {
+        // 如果是数字类型，构建字符串表示
+        return "ns=" + std::to_string(nodeId.namespaceIndex) + ";i=" + std::to_string(nodeId.identifier.numeric);
+    }
+    else if (nodeId.identifierType == UA_NODEIDTYPE_GUID)
+    {
+        // 如果是 GUID 类型，构建字符串表示
+        char guidStr[64];
+        snprintf(guidStr, sizeof(guidStr), "ns=%d;g=%s", nodeId.namespaceIndex, nodeId.identifier.guid);
+        return std::string(guidStr);
+    }
+    else
+    {
+        return "Unknown NodeId type";
+    }
+}
+
+bool OpcUaServer::hasNode(const UA_NodeId & node)
+{
+    for (const UA_NodeId & nodeId : m_nodeMap)
+    {
+        if (getNodeIdString(nodeId) == getNodeIdString(node))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConfig & varConfig, QString & deviceName)
 {
