@@ -5,10 +5,13 @@
 #include <QVector>
 #include <QString>
 #include <QVariant>
-#include "config.h" // 你提供的配置结构
+
+#include <vector>
+
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 
+#include "config.h" // 配置结构
 #include "opcua_global.h"
 
 class OPCUA_EXPORT OpcUaClient : public QObject
@@ -23,6 +26,8 @@ public:
     void disconnectFromServer();
 
     QVariant readValue(const QString & fullNodeId);
+
+    void subscribeNodeValue(const QString & nodeIdStr);
 
 private:
     UA_Client * m_client = nullptr;

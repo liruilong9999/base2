@@ -38,10 +38,12 @@ public:
     // 创建单个变量节点
     UA_NodeId createVariableNode(UA_NodeId & parentNodeIdStr, VariableConfig & varConfig, QString & deviceName);
 
-    void setupPeriodicNodePublishing(UA_NodeId * nodeList, size_t nodeCount, UA_Double intervalMs);
+    void setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList,
+                                     double                         intervalMs,
+                                     const QString &                writerGroupName,
+                                     const QString &                dataSetWriterName);
 
-public slots:
-    void onTimerTimeout();
+        public slots : void onTimerTimeout();
 
 private:
     QTimer *          m_pTimer;        // 定时器

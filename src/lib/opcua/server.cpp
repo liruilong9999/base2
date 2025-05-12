@@ -208,95 +208,128 @@ void printNodeId(const UA_NodeId & nodeId)
     qDebug() << "NodeId:" << result;
 }
 
-void OpcUaServer::setupPeriodicNodePublishing(UA_NodeId * nodeList, size_t nodeCount, UA_Double intervalMs)
+void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList,
+                                      double                         intervalMs,
+                                      const QString &                writerGroupName,
+                                      const QString &                dataSetWriterName)
 {
-    UA_Server * server = m_pServer;
-    // ---------- 1. 创建 PubSub 连接 ----------
+    // 配置 PubSub 连接参数（使用 UDP 组播方式）
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name                = UA_STRING("UADP Connection");
-    connectionConfig.enabled             = UA_TRUE; // 启用该连接
-    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.name                = UA_STRING("UADP Connection"); // 连接名称
+    connectionConfig.transportProfileUri = UA_STRING(
+        "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"); // 使用 UDP+UADP 传输协议
+    connectionConfig.enabled = UA_TRUE;                                   // 启用该连接
 
-    // 设置网络地址（UDP 多播地址）
+    // 设置 UDP 地址为组播地址（标准 OPC UA 示例地址）
     UA_NetworkAddressUrlDataType address;
-    address.networkInterface = UA_STRING_NULL; // 默认接口
-    address.url              = UA_STRING("opc.udp://224.0.0.22:4840/");
+    address.networkInterface = UA_STRING_NULL;                          // 默认网卡
+    address.url              = UA_STRING("opc.udp://224.0.0.22:4840/"); // UDP 多播地址
     UA_Variant_setScalar(&connectionConfig.address, &address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    // 设置发布者ID（静态方式），用于在订阅端识别发布者
+    // 设置发布者ID（标识唯一发布者）
     connectionConfig.publisherIdType    = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = 2234;
 
-    UA_NodeId connectionIdent;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    // 添加 PubSub 连接到服务器中
+    UA_NodeId connectionId;
+    if (UA_Server_addPubSubConnection(m_pServer, &connectionConfig, &connectionId) != UA_STATUSCODE_GOOD)
+    {
+        qWarning("添加 PubSub 连接失败");
+        return;
+    }
 
-    // ---------- 2. 创建 PublishedDataSet（PDS） ----------
+    // 创建 PublishedDataSet（发布的数据集）
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(pdsConfig));
-    pdsConfig.name                 = UA_STRING("MyPublishedDataSet");
-    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    pdsConfig.name                 = UA_STRING("MyDataSet");           // 数据集名称（内部可重复使用）
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS; // 按变量发布项
 
-    UA_NodeId pdsIdent;
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &pdsIdent);
+    //UA_NodeId pdsId;
+    //if (UA_Server_addPublishedDataSet(m_pServer, &pdsConfig, &pdsId) != UA_STATUSCODE_GOOD)
+    //{
+    //    qWarning("添加 PublishedDataSet 失败");
+    //    return;
+    //}
 
-    // ---------- 3. 为每个节点添加 DataSetField ----------
-    for (size_t i = 0; i < nodeCount; ++i)
+    // 遍历节点列表，添加每个变量作为数据字段
+    for (const UA_NodeId & nodeId : nodeList)
     {
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(fieldConfig));
-        fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        fieldConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        fieldConfig.field.variable.publishParameters.publishedVariable = nodeId;               // 要发布的节点
+        fieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE; // 发布 Value 属性
+        fieldConfig.field.variable.promotedField                       = UA_TRUE;              // 作为独立数据字段传输
 
-        char nameAlias[64];
-        snprintf(nameAlias, sizeof(nameAlias), "Node_%lu", (unsigned long)i);
-        fieldConfig.field.variable.fieldNameAlias = UA_STRING_ALLOC(nameAlias);
-        fieldConfig.field.variable.promotedField  = UA_FALSE;
-
-        // 设置被发布的变量及其属性（值属性）
-        fieldConfig.field.variable.publishParameters.publishedVariable = nodeList[i];
-        fieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-
-        UA_NodeId dataSetFieldIdent;
-        UA_Server_addDataSetField(server, pdsIdent, &fieldConfig, &dataSetFieldIdent);
+        //UA_NodeId fieldId;
+        //if (UA_Server_addDataSetField(m_pServer, pdsId, &fieldConfig, &fieldId) != UA_STATUSCODE_GOOD)
+        //{
+        //    qWarning("添加 DataSetField 失败");
+        //}
     }
 
-    // ---------- 4. 创建 WriterGroup ----------
+    // 配置 WriterGroup（写组，控制发布节奏）
     UA_WriterGroupConfig wgConfig;
     memset(&wgConfig, 0, sizeof(wgConfig));
-    wgConfig.name               = UA_STRING("MyWriterGroup");
-    wgConfig.publishingInterval = intervalMs; // 发布周期
+    wgConfig.publishingInterval = intervalMs; // 发布周期（毫秒）
     wgConfig.enabled            = UA_TRUE;
     wgConfig.writerGroupId      = 100;
     wgConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
 
-    // 设置 WriterGroup 的消息内容配置（UADP 编码）
-    UA_UadpWriterGroupMessageDataType * msgData = UA_UadpWriterGroupMessageDataType_new();
-    msgData->networkMessageContentMask          = UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-                                         UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-                                         UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-                                         UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+    // 设置 WriterGroup 的名称（从传入 QString 转为 UA_String）
+    wgConfig.name = UA_STRING_ALLOC(writerGroupName.toUtf8().constData());
+
+    // 配置 UADP 消息头格式（决定发布数据中包含哪些信息）
+    UA_UadpWriterGroupMessageDataType * message = UA_UadpWriterGroupMessageDataType_new();
+    message->networkMessageContentMask =
+        UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+        UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+        UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+        UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
 
     wgConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     wgConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-    wgConfig.messageSettings.content.decoded.data = msgData;
+    wgConfig.messageSettings.content.decoded.data = message;
 
-    UA_NodeId writerGroupIdent;
-    UA_Server_addWriterGroup(server, connectionIdent, &wgConfig, &writerGroupIdent);
+    // 添加 WriterGroup 到 PubSub 连接
+    UA_NodeId writerGroupId;
+    if (UA_Server_addWriterGroup(m_pServer, connectionId, &wgConfig, &writerGroupId) != UA_STATUSCODE_GOOD)
+    {
+        qWarning("添加 WriterGroup 失败");
+        UA_UadpWriterGroupMessageDataType_delete(message);
+        UA_String_clear(&wgConfig.name);
+        return;
+    }
 
-    // 设置为运行态
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-    UA_UadpWriterGroupMessageDataType_delete(msgData);
+    // 将 WriterGroup 设为运行状态
+    UA_Server_setWriterGroupOperational(m_pServer, writerGroupId);
 
-    // ---------- 5. 创建 DataSetWriter（连接 WG 与 PDS） ----------
+    // 释放动态分配的消息格式对象和名称字符串
+    UA_UadpWriterGroupMessageDataType_delete(message);
+    UA_String_clear(&wgConfig.name);
+
+    // 配置 DataSetWriter（数据集写入器：负责具体将数据写入组播数据包）
     UA_DataSetWriterConfig dswConfig;
     memset(&dswConfig, 0, sizeof(dswConfig));
-    dswConfig.name            = UA_STRING("MyDataSetWriter");
-    dswConfig.dataSetWriterId = 42;
+    dswConfig.dataSetWriterId = 1;
     dswConfig.keyFrameCount   = 10;
+    dswConfig.name            = UA_STRING_ALLOC(dataSetWriterName.toUtf8().constData()); // 名称设置来自外部参数
 
-    UA_NodeId dswIdent;
-    UA_Server_addDataSetWriter(server, writerGroupIdent, pdsIdent, &dswConfig, &dswIdent);
+    //UA_NodeId dswId;
+    //if (UA_Server_addDataSetWriter(m_pServer, writerGroupId, pdsId, &dswConfig, &dswId) != UA_STATUSCODE_GOOD)
+    //{
+    //    qWarning("添加 DataSetWriter 失败");
+    //}
+
+    // 释放 DataSetWriter 名称的动态内存
+    UA_String_clear(&dswConfig.name);
+
+    qDebug("PubSub 发布设置完成：WriterGroup '%s', DataSetWriter '%s'",
+           writerGroupName.toUtf8().constData(),
+           dataSetWriterName.toUtf8().constData());
 }
+
 
 UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConfig & varConfig, QString & deviceName)
 {
