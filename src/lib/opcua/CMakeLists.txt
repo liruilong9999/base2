@@ -17,4 +17,4 @@ set(SELF_LIBRARY_LIST  "WS2_32" "iphlpapi" "open62541")
 add_compile_definitions(OPCUA_LIBRARY)  
 
 # 创建项目   
-CreateTarget(${ProjectName} "Dll")    
+CreateTarget(${ProjectName} "Dll")

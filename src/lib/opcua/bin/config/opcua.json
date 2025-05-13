@@ -2,9 +2,6 @@
     "opcua": [
         {
             "url": "opc.tcp://127.0.0.1:4840",
-			"userName":"admin",
-			"password":"123456",
-			"maxConnect":"20",
             "devices": [
                 {
                     "device_name": "elecSenser",
@@ -46,6 +43,83 @@
                 {
                     "device_name": "navigation",
                     "device_node_id": "ns=1;s=Navigation", 
+                    "period": 50,
+                    "variables": [
+                        {
+                            "browse_name": "SystemStatus",
+                            "display_name": "xitongzhuangtai",
+                            "data_type": "uint32",
+                            "default_value": 0,
+                            "access_level": "rw",
+                            "description": "0:离线, 1:正常, 2:警告"
+                        },
+                        {
+                            "browse_name": "Speed",
+                            "display_name": "sudu",
+                            "data_type": "double",
+                            "default_value": 0.0,
+                            "access_level": "rw",
+                            "min_value": 0.0,
+                            "max_value": 100.0,
+                            "description": "速度值（单位：km/h）"
+                        },
+                        {
+                            "browse_name": "Heading",
+                            "display_name": "hangxiang",
+                            "data_type": "double",
+                            "default_value": 0.0,
+                            "access_level": "rw",
+                            "min_value": 0.0,
+                            "max_value": 360.0,
+                            "description": "航向角（单位：度）"
+                        }
+                    ]
+                }
+            ]
+        },
+		{
+            "url": "opc.tcp://127.0.0.1:4842",
+            "devices": [
+                {
+                    "device_name": "elecSenser2",
+                    "device_node_id": "ns=1;s=ElecSenser2", 
+                    "period": 100,
+                    "variables": [
+                        {
+                            "browse_name": "Current",
+                            "display_name": "dianliu",
+                            "data_type": "double",
+                            "default_value": 0.0,
+                            "access_level": "rw",
+                            "min_value": 0.0,
+                            "max_value": 1000.0,
+                            "description": "电流值（单位：A）"
+                        },
+                        {
+                            "browse_name": "Voltage",
+                            "display_name": "dianya",
+                            "data_type": "double",
+                            "default_value": 0.0,
+                            "access_level": "rw",
+                            "min_value": 0.0,
+                            "max_value": 1000.0,
+                            "description": "电压值（单位：V）"
+                        },
+                        {
+                            "browse_name": "Power",
+                            "display_name": "gonglv",
+                            "data_type": "double",
+                            "default_value": 0.0,
+                            "access_level": "rw",
+                            "min_value": 0.0,
+                            "max_value": 5000.0,
+                            "description": "功率值（单位：W）"
+                        }
+                    ]
+                },
+                {
+                    "device_name": "navigation2",
+                    "device_node_id": "ns=1;s=Navigation2", 
                     "period": 50,
                     "variables": [
                         {

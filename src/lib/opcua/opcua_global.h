@@ -9,4 +9,7 @@
 #define OPCUA_EXPORT Q_DECL_IMPORT
 #endif
 
+#include "./opcuadefine.h"
+#include "./leventbus.h"
+
 #endif // LLOG_GLOBAL_H

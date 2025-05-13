@@ -8,8 +8,7 @@ get_filename_component(ProjectName ${AbsolutePathProject} NAME)
 set(QT_LIBRARY_LIST "Core" "Gui" "Widgets" "Network" "Concurrent")
 # 链接库
 
-set(SELF_LIBRARY_LIST  "WS2_32" "iphlpapi")
+set(SELF_LIBRARY_LIST  "WS2_32" "iphlpapi" "opcua")
 
 # 创建项目 
 CreateTarget(${ProjectName} "ExeCMD") 
-  
