@@ -37,6 +37,8 @@ bool ConfigParser::parseConfig(const QString & filePath, QVector<OpcUaConfig> & 
         QJsonObject opcuaObj = opcuaVal.toObject();
         OpcUaConfig config;
         config.url = opcuaObj.value("url").toString();
+        config.userName = opcuaObj.value("userName").toString();
+        config.password = opcuaObj.value("password").toString();
 
         // 解析 port（从URL中提取）
         QUrl url(config.url);

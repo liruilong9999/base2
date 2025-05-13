@@ -33,8 +33,11 @@ struct DeviceConfig
 // OPC UA服务器配置
 struct OpcUaConfig
 {
-    QString               url;
-    quint16               port;
+    QString url;
+    quint16 port;
+    QString userName;
+    QString password;
+
     QVector<DeviceConfig> devices;
 };
 

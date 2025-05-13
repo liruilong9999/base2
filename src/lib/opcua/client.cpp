@@ -1,5 +1,5 @@
 ﻿#include <QDebug>
-#include <QTimer> 
+#include <QTimer>
 
 extern "C"
 {
@@ -12,9 +12,6 @@ extern "C"
 OpcUaClient::OpcUaClient(QObject * parent)
     : QObject(parent)
 {
-    m_client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
-
     m_client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(m_client));
 
@@ -40,10 +37,17 @@ OpcUaClient::~OpcUaClient()
 
 bool OpcUaClient::connectToServer(const QString & url)
 {
-    UA_StatusCode status = UA_Client_connect(m_client, url.toUtf8().constData());
+    // 设置用户名和密码进行连接
+    UA_StatusCode status = UA_Client_connectUsername(
+        m_client,
+        url.toUtf8().constData(),
+        "admin", // 用户名（与服务端设置一致）
+        "123456" // 密码（与服务端设置一致）
+    );
+    // UA_StatusCode status = UA_Client_connect(m_client, url.toUtf8().constData());
     if (status != UA_STATUSCODE_GOOD)
     {
-        qWarning() << "Failed to connect to server:" << UA_StatusCode_name(status);
+        qWarning() << "______Failed to connect to server:" << UA_StatusCode_name(status);
         return false;
     }
     return true;
@@ -111,7 +115,13 @@ void OpcUaClient::subscribeNodeValue(const QString & nodeIdStr)
     monRequest.requestedParameters.samplingInterval = 500.0; // 采样间隔
 
     UA_MonitoredItemCreateResult monResponse =
-        UA_Client_MonitoredItems_createDataChange(client, subId, UA_TIMESTAMPSTORETURN_SOURCE, monRequest, NULL, handler_DataChanged, NULL);
+        UA_Client_MonitoredItems_createDataChange(client,
+                                                  subId,
+                                                  UA_TIMESTAMPSTORETURN_SOURCE,
+                                                  monRequest,
+                                                  NULL,
+                                                  handler_DataChanged,
+                                                  NULL);
     if (monResponse.statusCode != UA_STATUSCODE_GOOD)
     {
         qWarning("创建监控项失败");

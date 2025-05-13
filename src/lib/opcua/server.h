@@ -27,7 +27,7 @@ public:
     void stopServer();
 
     // 添加节点,当前服务下有哪些节点
-    void addNode(UA_NodeId node);
+    //void addNode(UA_NodeId node);
 
     // 更新节点数据
     void updateNodeData(const QString & nodeBrowseName, const QVariant & value);

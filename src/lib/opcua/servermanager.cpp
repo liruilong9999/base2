@@ -33,7 +33,7 @@ void ServerManager::startThread()
 
 void ServerManager::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList, double intervalMs, const QString & writerGroupName, const QString & dataSetWriterName)
 {
-    for (auto node : nodeList)
+    for (UA_NodeId node : nodeList)
     {
         for (auto server : m_servers)
         {

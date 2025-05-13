@@ -2,6 +2,8 @@
     "opcua": [
         {
             "url": "opc.tcp://127.0.0.1:4840",
+			"userName":"admin",
+			"password":"123456",
             "devices": [
                 
                 {

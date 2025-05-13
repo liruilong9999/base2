@@ -1,18 +1,24 @@
 
 #include <QDebug>
+#include <QUrl>
 extern "C"
 {
 #include <signal.h>
 #include <stdlib.h>
 
 #include <open62541/server_pubsub.h>
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types_generated.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/accesscontrol_default.h>
 }
 
 #include "translate.h"
 #include "server.h"
+#ifndef UA_SECURITYPOLICY_NONE_URI
+#define UA_SECURITYPOLICY_NONE_URI \
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None")
+#endif // !1
 
 // 控制服务器运行状态的标志
 UA_Boolean g_running = true;
@@ -76,15 +82,80 @@ OpcUaServer::~OpcUaServer()
     }
 }
 
+// 允许添加节点的访问控制回调函数
+static UA_Boolean
+allowAddNode(UA_Server * server, UA_AccessControl * ac, const UA_NodeId * sessionId, void * sessionContext, const UA_AddNodesItem * item)
+{
+    printf("Called allowAddNode\n");
+    return UA_TRUE; // 允许添加节点
+}
+
+// 允许添加引用的访问控制回调函数
+static UA_Boolean
+allowAddReference(UA_Server * server, UA_AccessControl * ac, const UA_NodeId * sessionId, void * sessionContext, const UA_AddReferencesItem * item)
+{
+    printf("Called allowAddReference\n");
+    return UA_TRUE; // 允许添加引用
+}
+
+// 禁止删除节点的访问控制回调函数
+static UA_Boolean
+allowDeleteNode(UA_Server * server, UA_AccessControl * ac, const UA_NodeId * sessionId, void * sessionContext, const UA_DeleteNodesItem * item)
+{
+    printf("Called allowDeleteNode\n");
+    return UA_FALSE; // 禁止客户端删除节点
+}
+
+// 允许删除引用的访问控制回调函数
+static UA_Boolean
+allowDeleteReference(UA_Server * server, UA_AccessControl * ac, const UA_NodeId * sessionId, void * sessionContext, const UA_DeleteReferencesItem * item)
+{
+    printf("Called allowDeleteReference\n");
+    return UA_TRUE; // 允许删除引用
+}
+
+// 设置自定义访问控制策略
+static void
+setCustomAccessControl(UA_ServerConfig * config, UA_UsernamePasswordLogin userNamePW[1])
+{
+    // static UA_UsernamePasswordLogin userNamePW[1] = {
+    //     {UA_STRING_STATIC("admin"), UA_STRING_STATIC("123456")}};
+    //  使用默认访问控制插件作为基础
+    UA_Boolean allowAnonymous   = false; // 禁止匿名登录
+    UA_String  encryptionPolicy = config->securityPolicies[config->securityPoliciesSize - 1].policyUri;
+    // UA_ByteString userTokenPolicyUri = UA_BYTESTRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
+
+    // 清除原有访问控制配置
+    config->accessControl.clear(&config->accessControl);
+
+    // 配置用户名密码认证方式（允许 peter 和 paula 登录）
+    UA_AccessControl_default(config, allowAnonymous, &encryptionPolicy, 1, userNamePW);
+
+    // 自定义节点管理相关的权限控制
+    config->accessControl.allowAddNode         = allowAddNode;
+    config->accessControl.allowAddReference    = allowAddReference;
+    config->accessControl.allowDeleteNode      = allowDeleteNode;
+    config->accessControl.allowDeleteReference = allowDeleteReference;
+}
+
 bool OpcUaServer::startServer()
 {
     // 设置服务器监听端口为 m_port，监听所有 IP（0.0.0.0），即 opc.tcp://<本机IP>:m_port
     UA_ServerConfig_setMinimal(m_pServerConfig, m_config.port, NULL);
 
-    // 设置服务器URL
-    // UA_String hostname = UA_STRING_ALLOC(m_config.url.toUtf8().constData());
-    // UA_ServerConfig_sethostname(UA_Server_getConfig(m_pServer), hostname);
-    // UA_String_clear(&hostname);
+    // 允许在无加密策略下使用用户名密码登录（仅用于测试环境）
+    m_pServerConfig->allowNonePolicyPassword = true;
+
+    QByteArray userNameArr = m_config.userName.toUtf8();
+    QByteArray passwordArr = m_config.password.toUtf8();
+
+    // 用户名密码登录列表
+    UA_UsernamePasswordLogin logins[1];
+    logins[0].username = UA_STRING_ALLOC(userNameArr.constData());
+    logins[0].password = UA_STRING_ALLOC(passwordArr.constData());
+
+    // 设置自定义访问控制策略
+    setCustomAccessControl(m_pServerConfig, logins);
 
     // 添加变量节点（示例）
     if (!createNodes() || m_config.devices.isEmpty())
@@ -96,6 +167,7 @@ bool OpcUaServer::startServer()
         return false;
 
     m_pTimer->start(m_config.devices.first().period);
+    return true;
     //  启动服务器主循环，直到 running 为 false
     // return (UA_Server_run(m_pServer, &g_running) == UA_STATUSCODE_GOOD); // 这里会阻塞，需要重构
 }
@@ -126,6 +198,11 @@ void OpcUaServer::updateNodeData(const QString & nodeBrowseName, const QVariant 
     {
         int32_t val = value.toInt();
         UA_Variant_setScalar(&var, &val, &UA_TYPES[UA_TYPES_INT32]);
+    }
+    else if (value.type() == QVariant::UInt)
+    {
+        uint32_t val = value.toUInt();
+        UA_Variant_setScalar(&var, &val, &UA_TYPES[UA_TYPES_UINT32]);
     }
     // 其他类型处理...
 
@@ -177,30 +254,6 @@ bool OpcUaServer::createNodes()
         }
     }
     return true;
-}
-void printNodeId(const UA_NodeId & nodeId)
-{
-    QString result = QString("ns=%1;").arg(nodeId.namespaceIndex);
-    switch (nodeId.identifierType)
-    {
-    case UA_NODEIDTYPE_NUMERIC :
-        result += QString("i=%1").arg(nodeId.identifier.numeric);
-        break;
-    case UA_NODEIDTYPE_STRING :
-        result += QString("s=%1").arg(QString::fromUtf8((char *)nodeId.identifier.string.data,
-                                                        static_cast<int>(nodeId.identifier.string.length)));
-        break;
-    case UA_NODEIDTYPE_GUID :
-        result += "g=<GUID>"; // 可根据需要实现 GUID 打印
-        break;
-    case UA_NODEIDTYPE_BYTESTRING :
-        result += "b=<ByteString>"; // 可根据需要实现 ByteString 打印
-        break;
-    default :
-        result += "<Unknown>";
-    }
-
-    qDebug() << "NodeId:" << result;
 }
 
 void OpcUaServer::setupPeriodicNodePublishing(const std::vector<UA_NodeId> & nodeList,
@@ -347,13 +400,13 @@ std::string getNodeIdString(const UA_NodeId & nodeId)
         // 如果是数字类型，构建字符串表示
         return "ns=" + std::to_string(nodeId.namespaceIndex) + ";i=" + std::to_string(nodeId.identifier.numeric);
     }
-    else if (nodeId.identifierType == UA_NODEIDTYPE_GUID)
-    {
-        // 如果是 GUID 类型，构建字符串表示
-        char guidStr[64];
-        snprintf(guidStr, sizeof(guidStr), "ns=%d;g=%s", nodeId.namespaceIndex, nodeId.identifier.guid);
-        return std::string(guidStr);
-    }
+    // else if (nodeId.identifierType == UA_NODEIDTYPE_GUID)
+    //{
+    //     // 如果是 GUID 类型，构建字符串表示
+    //     char guidStr[64];
+    //     snprintf(guidStr, sizeof(guidStr), "ns=%d;g=%s", nodeId.namespaceIndex, nodeId.identifier.guid);
+    //     return std::string(guidStr);
+    // }
     else
     {
         return "Unknown NodeId type";
@@ -419,8 +472,6 @@ UA_NodeId OpcUaServer::createVariableNode(UA_NodeId & parentNodeId, VariableConf
         attr,
         nullptr,
         &nodeId);
-
-    printNodeId(nodeId);
 
     if (status != UA_STATUSCODE_GOOD)
     {
